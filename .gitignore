@@ -1,0 +1,7 @@
+**.cache/
+**.vscode/
+assets/
+!assets/audio/pirri.wav
+bin/
+build/
+umugu/lib/
