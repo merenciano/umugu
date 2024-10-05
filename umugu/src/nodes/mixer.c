@@ -56,7 +56,7 @@ static inline int um__getsignal(umugu_node **node, umugu_signal *out)
     return UMUGU_SUCCESS;
 }
 
-umugu_node_fn um__mixer_getfn(umugu_code fn)
+umugu_node_fn um__mixer_getfn(umugu_fn fn)
 {
     switch (fn)
     {

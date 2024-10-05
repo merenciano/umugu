@@ -51,12 +51,6 @@ enum {
     UMUGU_NONE = 0,
     UMUGU_SUCCESS,
 
-    UMUGU_FN = (1 << 9),
-    UMUGU_FN_INIT,
-    UMUGU_FN_GETSIGNAL,
-    UMUGU_FN_RELEASE,
-
-    /* Error codes */
     UMUGU_ERR_LAST = -32768,
     UMUGU_ERR_ARGS,
     UMUGU_ERR_MEM,
@@ -65,7 +59,8 @@ enum {
     UMUGU_ERR,
 };
 
-typedef int32_t umugu_code; /* Values from umugu_codes are expected. */
+enum { UMUGU_FN_INIT, UMUGU_FN_GETSIGNAL, UMUGU_FN_RELEASE };
+typedef int umugu_fn;
 
 typedef struct {
     char str[UMUGU_NAME_LEN];
@@ -122,7 +117,7 @@ typedef struct {
     umugu_name name;
     int32_t size_bytes;
     int32_t var_count;
-    umugu_node_fn (*getfn)(umugu_code fn);
+    umugu_node_fn (*getfn)(int fn);
     const umugu_var_info *vars; /* field metadata */
     void *plug_handle;
 } umugu_node_info;
@@ -180,8 +175,9 @@ int umugu_plug(const umugu_name *name);
 void umugu_unplug(const umugu_name *name);
 
 /* Node virtual dispatching.
+ * @param fn Function identifier, valid definitions are prefixed with UMUGU_FN_.
  * Return UMUGU_SUCCESS if the call is performed and UMUGU_ERR otherwise. */
-int umugu_node_call(umugu_code fn, umugu_node **node, umugu_signal *out);
+int umugu_node_call(int fn, umugu_node **node, umugu_signal *out);
 
 /* Gets the node info from context's node infos.
  * Return a pointer to the node info in the context or NULL if not found. */

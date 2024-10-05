@@ -222,7 +222,7 @@ void umugu_init(void)
     umugu_init_backend();
 }
 
-int umugu_node_call(umugu_code fn, umugu_node **node, umugu_signal *out)
+int umugu_node_call(umugu_fn fn, umugu_node **node, umugu_signal *out)
 {
     const umugu_name *name = (umugu_name*)*node;
     const umugu_node_info *info = umugu_node_info_find(name);

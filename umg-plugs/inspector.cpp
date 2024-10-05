@@ -40,7 +40,7 @@ static const umugu_var_info var_metadata[] = {
 };
 
 extern "C" const int32_t size = (int32_t)sizeof(Inspector);
-extern "C" umugu_node_fn getfn(umugu_code fn);
+extern "C" umugu_node_fn getfn(int32_t fn);
 extern "C" const umugu_var_info* vars;
 extern "C" const int32_t var_count = 4;
 
@@ -85,7 +85,7 @@ static int GetSignal(umugu_node** node, umugu_signal* out)
     return UMUGU_SUCCESS;
 }
 
-umugu_node_fn getfn(umugu_code fn)
+umugu_node_fn getfn(int32_t fn)
 {
     switch (fn) {
     case UMUGU_FN_INIT:
