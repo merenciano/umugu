@@ -1,6 +1,27 @@
-#include "umugu_internal.h"
+#include "builtin_nodes.h"
+#include "umugu.h"
 
-static inline void um__init(umugu_node **node, umugu_signal *_)
+typedef struct {
+    umugu_node node;
+    int32_t input_count;
+    int32_t padding;
+} um__mixer;
+
+const int32_t um__mixer_size = (int32_t)sizeof(um__mixer);
+const int32_t um__mixer_var_count = 1;
+
+const umugu_var_info um__mixer_vars[] = {
+    {
+        .name = {.str = "InputCount"},
+        .offset_bytes = offsetof(um__mixer, input_count),
+        .type = UMUGU_TYPE_INT32,
+        .count = 1,
+        .range_min = 0,
+        .range_max = 8
+    }
+};
+
+static inline int um__init(umugu_node **node, umugu_signal *_)
 {
     um__mixer *self = (void*)*node;
     *node = (void*)((char*)*node + sizeof(um__mixer));
@@ -8,9 +29,10 @@ static inline void um__init(umugu_node **node, umugu_signal *_)
     for (int i = 1; i < self->input_count; ++i) {
         umugu_node_call(UMUGU_FN_INIT, node, _);
     }
+    return UMUGU_SUCCESS;
 }
 
-static inline void um__getsignal(umugu_node **node, umugu_signal *out)
+static inline int um__getsignal(umugu_node **node, umugu_signal *out)
 {
     um__mixer *self = (void*)*node;
     *node = (void*)((char*)*node + sizeof(um__mixer));
@@ -31,6 +53,7 @@ static inline void um__getsignal(umugu_node **node, umugu_signal *out)
         out->samples[i].left *= inv_count;
         out->samples[i].right *= inv_count;
     }
+    return UMUGU_SUCCESS;
 }
 
 umugu_node_fn um__mixer_getfn(umugu_code fn)

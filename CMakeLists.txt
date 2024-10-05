@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.13) #TODO(Check the real minimum)
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 
 project (Umugu VERSION 0.0.1)

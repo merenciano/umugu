@@ -15,14 +15,12 @@ static PaError umugu__pa_err;
 static void umugu__pa_terminate(void)
 {
     umugu_ctx *ctx = umugu_get_context();
-    ctx->err = UMUGU_ERR_PORTAUDIO;
-    strncpy(ctx->err_msg, Pa_GetErrorText(umugu__pa_err), UMUGU_ERR_MSG_LEN);
+    ctx->log("Error PortAudio: %s\n", Pa_GetErrorText(umugu__pa_err));
     Pa_Terminate();
-    ctx->log(UMUGU_LOG_ERR,
-        "An error occurred while using the portaudio stream.\n"
-        "\tError number: %d.\n"
-        "\tError message: %s.",
-        umugu__pa_err, Pa_GetErrorText(umugu__pa_err));
+    ctx->log("An error occurred while using the portaudio stream.\n"
+             "\tError number: %d.\n"
+             "\tError message: %s.",
+             umugu__pa_err, Pa_GetErrorText(umugu__pa_err));
     ctx->abort();
 }
 

@@ -21,17 +21,22 @@ target_compile_options(umugu PUBLIC
     #-fsanitize=address,undefined
 )
 
-target_include_directories(umugu PUBLIC
+target_include_directories(umugu PRIVATE 
     ${CMAKE_CURRENT_SOURCE_DIR}/include/umugu
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/include
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
+target_include_directories(umugu PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
 target_sources(umugu PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu_portaudio.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/builtin_nodes.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/oscilloscope.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/oscilloscope_lut.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/waveform.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/wav_player.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/mixer.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/limiter.c

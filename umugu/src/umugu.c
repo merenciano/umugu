@@ -1,5 +1,6 @@
 #include "umugu.h"
 #include "umugu_internal.h"
+#include "nodes/builtin_nodes.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -16,32 +17,70 @@
      (UMUGU_VERSION_MINOR << 10) | \
       UMUGU_VERSION_PATCH)
 
-typedef struct um__nodeinfo {
-    umugu_name name;
-    umugu_node_fn (*getfn)(umugu_code fn);
-    size_t size_bytes;
-    void *handle; /* dynamic lib handle */
-} um__nodeinfo;
 
-typedef struct um__nodeinfo_arr {
-    const int max;
-    int next;
-    um__nodeinfo info[UMUGU_CONFIG_NODE_INFO_CAPACITY];
-} um__nodeinfo_arr;
-
-static um__nodeinfo_arr nodes = { .max = UMUGU_CONFIG_NODE_INFO_CAPACITY, .next = 0 };
-
+umugu_node_info g_builtin_nodes_info[UM__BUILTIN_NODES_COUNT];
 /* The default ctx relies in being zero-initialized for being static. */
-static umugu_ctx g_default_ctx = { .sample_rate = UMUGU_SAMPLE_RATE, .audio_src_sample_capacity = 1024 };
+static umugu_ctx g_default_ctx = {
+    .nodes_info_capacity = UMUGU_CONFIG_NODE_INFO_CAPACITY,
+    .sample_rate = UMUGU_SAMPLE_RATE,
+    .audio_src_sample_capacity = 1024
+};
 static umugu_ctx *g_ctx = &g_default_ctx;
 
-static inline um__nodeinfo *um__find_info(umugu_name *name)
+static inline int um__name_equals(const umugu_name *a, const umugu_name *b)
 {
-    for (int i = 0; i < nodes.next; ++i) {
-        if (!strncmp(nodes.info[i].name.str, name->str, UMUGU_NAME_LEN)) {
-            return nodes.info + i;
+    return !memcmp(a, b, UMUGU_NAME_LEN);
+}
+
+static inline const umugu_node_info * um__node_info_builtin_find(const umugu_name *name) {
+    for (int i = 0; i < UM__BUILTIN_NODES_COUNT; ++i) {
+        if (!strncmp(g_builtin_nodes_info[i].name.str, name->str,
+                     UMUGU_NAME_LEN)) {
+            return g_builtin_nodes_info + i;
         }
     }
+    return NULL;
+}
+
+const umugu_node_info * umugu_node_info_find(const umugu_name *name)
+{
+    for (int i = 0; i < g_ctx->nodes_info_next; ++i) {
+        if (um__name_equals(&g_ctx->nodes_info[i].name, name)) {
+            return g_ctx->nodes_info + i;
+        }
+    }
+
+    return NULL;
+}
+
+const umugu_node_info *
+umugu_node_info_load(const umugu_name *name)
+{
+    /* Check if the node info is already loaded. */
+    const umugu_node_info *found = umugu_node_info_find(name);
+    if (found) {
+        return found;
+    }
+
+    /* Look for it in the built-in nodes. */
+    const umugu_node_info *bi_info = um__node_info_builtin_find(name);
+    if (bi_info) {
+        /* Add the node info to the current context. */
+        g_ctx->assert(g_ctx->nodes_info_next < g_ctx->nodes_info_capacity);
+        umugu_node_info *info = &g_ctx->nodes_info[g_ctx->nodes_info_next++];
+        memcpy(info, bi_info, sizeof(umugu_node_info));
+        return info;
+    }
+
+    /* Check if there's a plug with that name and load it. */
+    int ret = umugu_plug(name);
+    if (ret >= 0) {
+        return g_ctx->nodes_info + ret;
+    }
+
+    /* Node info not found. */
+    g_ctx->assert(ret == UMUGU_ERR_PLUG);
+    g_ctx->log("Node type %s not found.\n", name->str);
     return NULL;
 }
 
@@ -55,14 +94,12 @@ umugu_ctx *umugu_get_context(void)
     return g_ctx;
 }
 
-void umugu_save_pipeline_bin(const char *filename)
+int umugu_save_pipeline_bin(const char *filename)
 {
     FILE *f = fopen(filename, "wb");
     if (!f) {
-        g_ctx->err = UMUGU_ERR_FILE;
-        snprintf(g_ctx->err_msg, UMUGU_ERR_MSG_LEN,
-            "Could not open the file %s. Aborting pipeline save.", filename);
-        return;
+        g_ctx->log("Could not open the file %s. Aborting pipeline save.", filename);
+        return UMUGU_ERR_FILE;
     }
 
     struct {
@@ -77,16 +114,16 @@ void umugu_save_pipeline_bin(const char *filename)
     int32_t tail = UMUGU_TAIL_CODE;
     fwrite(&tail, sizeof(tail), 1, f);
     fclose(f);
+
+    return UMUGU_SUCCESS;
 }
 
-void umugu_load_pipeline_bin(const char *filename)
+int umugu_load_pipeline_bin(const char *filename)
 {
     FILE *f = fopen(filename, "rb");
     if (!f) {
-        g_ctx->err = UMUGU_ERR_FILE;
-        snprintf(g_ctx->err_msg, UMUGU_ERR_MSG_LEN,
-            "Could not open the file %s. Aborting pipeline load.", filename);
-        return;
+        g_ctx->log("Could not open the file %s. Aborting pipeline load.\n", filename);
+        return UMUGU_ERR_FILE;
     }
 
     struct {
@@ -97,11 +134,9 @@ void umugu_load_pipeline_bin(const char *filename)
 
     fread(&header, sizeof(header), 1, f);
     if (header.head != UMUGU_HEAD_CODE) {
-        g_ctx->err = UMUGU_ERR_FILE;
-        snprintf(g_ctx->err_msg, UMUGU_ERR_MSG_LEN,
-            "Binary file %s header code does not match.", filename);
+        g_ctx->log("Binary file %s header code does not match.\n", filename);
         fclose(f);
-        return;
+        return UMUGU_ERR_FILE;
     }
     /* TODO(Err): Check if version is supported. */
 
@@ -116,10 +151,9 @@ void umugu_load_pipeline_bin(const char *filename)
     g_ctx->pipeline.root = g_ctx->alloc(header.size);
 
     if (!g_ctx->pipeline.root) {
-        g_ctx->err = UMUGU_ERR_MEM;
-        strcpy(g_ctx->err_msg, "Allocation failed. Aborting pipeline load.");
+        g_ctx->log("Allocation failed. Aborting pipeline load.\n");
         fclose(f);
-        return;
+        return UMUGU_ERR_MEM;
     }
 
     fread(g_ctx->pipeline.root, header.size, 1, f);
@@ -131,113 +165,108 @@ void umugu_load_pipeline_bin(const char *filename)
     /* Pipeline inits */
     umugu_node *it = g_ctx->pipeline.root;
     umugu_node_call(UMUGU_FN_INIT, &it, NULL);
+    return UMUGU_SUCCESS;
 }
 
 void umugu_init(void)
 {
-    /* Add built-in nodes */
-    {
-        /* Oscilloscope */
-        g_ctx->assert(nodes.next < nodes.max);
-        um__nodeinfo *info = &nodes.info[nodes.next++];
-        *info = (struct um__nodeinfo) {
-            .name = {.str = "Oscilloscope"},
-            .getfn = um__oscope_getfn,
-            .size_bytes = sizeof(um__oscope),
-            .handle = NULL };
-    }
+    g_ctx->nodes_info = g_ctx->alloc(g_ctx->nodes_info_capacity * sizeof(umugu_node_info));
+    g_ctx->nodes_info_next = 0;
 
-    {
-        /* .wav file player */
-        g_ctx->assert(nodes.next < nodes.max);
-        um__nodeinfo *info = &nodes.info[nodes.next++];
-        *info = (struct um__nodeinfo) {
-            .name = {.str = "WavFilePlayer"},
-            .getfn = um__wavplayer_getfn,
-            .size_bytes = sizeof(um__wav_player),
-            .handle = NULL };
-    }
+    /* Init built-in nodes. */
+    g_builtin_nodes_info[0] = (umugu_node_info) {
+        .name = {.str = "Oscilloscope"},
+        .size_bytes = um__oscope_size, 
+        .var_count = um__oscope_var_count,
+        .getfn = um__oscope_getfn, 
+        .vars = um__oscope_vars,
+        .plug_handle = NULL
+    };
 
-    {
-        /* Mixer */
-        g_ctx->assert(nodes.next < nodes.max);
-        um__nodeinfo *info = &nodes.info[nodes.next++];
-        *info = (struct um__nodeinfo) {
-            .name = {.str = "Mixer"},
-            .getfn = um__mixer_getfn,
-            .size_bytes = sizeof(um__mixer),
-            .handle = NULL };
-    }
+    g_builtin_nodes_info[1] = (umugu_node_info) {
+        .name = {.str = "WavFilePlayer"},
+        .size_bytes = um__wavplayer_size,
+        .var_count = um__wavplayer_var_count,
+        .getfn = um__wavplayer_getfn,
+        .vars = um__wavplayer_vars,
+        .plug_handle = NULL
+    };
 
-    {
-        /* Amplitude */
-        g_ctx->assert(nodes.next < nodes.max);
-        um__nodeinfo *info = &nodes.info[nodes.next++];
-        *info = (struct um__nodeinfo) {
-            .name = {.str = "Amplitude"},
-            .getfn = um__amplitude_getfn,
-            .size_bytes = sizeof(um__amplitude),
-            .handle = NULL };
-    }
+    g_builtin_nodes_info[2] = (umugu_node_info) {
+        .name = {.str = "Mixer"},
+        .size_bytes = um__mixer_size,
+        .var_count = um__mixer_var_count,
+        .getfn = um__mixer_getfn,
+        .vars = um__mixer_vars,
+        .plug_handle = NULL
+    };
 
-    {
-        /* Limiter */
-        g_ctx->assert(nodes.next < nodes.max);
-        um__nodeinfo *info = &nodes.info[nodes.next++];
-        *info = (struct um__nodeinfo) {
-            .name = {.str = "Limiter"},
-            .getfn = um__limiter_getfn,
-            .size_bytes = sizeof(um__limiter),
-            .handle = NULL };
-    }
+    g_builtin_nodes_info[3] = (umugu_node_info) {
+        .name = {.str = "Amplitude"},
+        .size_bytes = um__amplitude_size,
+        .var_count = um__amplitude_var_count,
+        .getfn = um__amplitude_getfn,
+        .vars = um__amplitude_vars,
+        .plug_handle = NULL
+    };
+
+    g_builtin_nodes_info[4] = (umugu_node_info) {
+        .name = {.str = "Limiter"},
+        .size_bytes = um__limiter_size,
+        .var_count = um__limiter_var_count,
+        .getfn = um__limiter_getfn,
+        .vars = um__limiter_vars,
+        .plug_handle = NULL
+    };
 
     umugu_init_backend();
 }
 
-void umugu_node_call(umugu_code fn, umugu_node **node, umugu_signal *out)
+int umugu_node_call(umugu_code fn, umugu_node **node, umugu_signal *out)
 {
-    um__nodeinfo *info = um__find_info((umugu_name*)*node);
+    const umugu_name *name = (umugu_name*)*node;
+    const umugu_node_info *info = umugu_node_info_find(name);
     if (!info) {
-        int ret = umugu_plug(&((*node)->name));
-        if (ret == UMUGU_INVALID) {
-            g_ctx->err = UMUGU_ERR;
-            snprintf(g_ctx->err_msg, UMUGU_ERR_MSG_LEN, "Node type %s not found.", (*node)->name.str);
-            return;
+        info = umugu_node_info_load(name);
+        if (!info) {
+            g_ctx->log("Node type %s not found.\n", name->str);
+            return UMUGU_ERR;
         }
-        info = &nodes.info[ret];
     }
     info->getfn(fn)(node, out);
+    return UMUGU_SUCCESS;
 }
 
-int umugu_plug(umugu_name *name)
+int umugu_plug(const umugu_name *name)
 {
     char buf[1024];
     snprintf(buf, 1024, "lib%s.so", name->str);
     
-    g_ctx->assert(nodes.next < nodes.max);
+    g_ctx->assert(g_ctx->nodes_info_next < g_ctx->nodes_info_capacity);
     void *hnd = dlopen(buf, RTLD_NOW);
     if (!hnd) {
-        g_ctx->err = UMUGU_ERR_PLUG;
-        snprintf(g_ctx->err_msg, UMUGU_ERR_MSG_LEN, "Can't load plug: dlopen(%s) failed.", buf);
-        return UMUGU_INVALID;
+        g_ctx->log("Can't load plug: dlopen(%s) failed.", buf);
+        return UMUGU_ERR_PLUG;
     }
 
-    um__nodeinfo *info = &nodes.info[nodes.next++];
+    umugu_node_info *info = &g_ctx->nodes_info[g_ctx->nodes_info_next++];
     strncpy(info->name.str, name->str, UMUGU_NAME_LEN);
-    info->getfn = (umugu_node_fn (*)(umugu_code))dlsym(hnd, "getfn");
+    *(void**)&info->getfn = dlsym(hnd, "getfn");
     info->size_bytes = *(size_t*)dlsym(hnd, "size");
-    info->handle = hnd;
-    return nodes.next - 1;
+    info->vars = *(umugu_var_info**)dlsym(hnd, "vars");
+    info->var_count = *(int32_t*)dlsym(hnd, "var_count");
+    info->plug_handle = hnd;
+    return g_ctx->nodes_info_next - 1;
 }
 
-void umugu_unplug(umugu_name *name)
+void umugu_unplug(const umugu_name *name)
 {
-    um__nodeinfo *info = um__find_info(name);
-    if (info) {
-        dlclose(info->handle);
-        um__nodeinfo *last = &nodes.info[--nodes.next];
+    umugu_node_info *info = (void*)umugu_node_info_find(name);
+    if (info && info->plug_handle) {
+        dlclose(info->plug_handle);
+        umugu_node_info *last = &g_ctx->nodes_info[--g_ctx->nodes_info_next];
         if (info != last) {
-            memcpy(info, &nodes.info[nodes.next], sizeof(*info));
+            memcpy(info, &g_ctx->nodes_info[g_ctx->nodes_info_next], sizeof(*info));
         }
         memset(last, 0, sizeof(*last));
     }

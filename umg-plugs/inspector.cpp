@@ -1,8 +1,8 @@
-#include <stdio.h>
 #include <umugu/umugu.h>
 
 typedef struct Inspector {
     umugu_node node;
+    float* out_values;
     int32_t it;
     int32_t padding;
     float* values;
@@ -12,10 +12,41 @@ typedef struct Inspector {
     int32_t pause;
 } Inspector;
 
-extern "C" const size_t size = sizeof(Inspector);
-extern "C" umugu_node_fn getfn(umugu_code fn);
+static const umugu_var_info var_metadata[] = {
+    { .name = { .str = "Values" },
+        .offset_bytes = offsetof(Inspector, out_values),
+        .type = UMUGU_TYPE_PLOTLINE,
+        .count = 2048,
+        .range_min = 0,
+        .range_max = 2048 },
+    { .name = { .str = "Stride" },
+        .offset_bytes = offsetof(Inspector, stride),
+        .type = UMUGU_TYPE_INT32,
+        .count = 1,
+        .range_min = 1,
+        .range_max = 1024 },
+    { .name = { .str = "Offset" },
+        .offset_bytes = offsetof(Inspector, offset),
+        .type = UMUGU_TYPE_INT32,
+        .count = 1,
+        .range_min = 1,
+        .range_max = 1024 },
+    { .name = { .str = "Pause" },
+        .offset_bytes = offsetof(Inspector, pause),
+        .type = UMUGU_TYPE_BOOL,
+        .count = 1,
+        .range_min = 0,
+        .range_max = 1 }
+};
 
-static void Init(umugu_node** node, umugu_signal* _)
+extern "C" const int32_t size = (int32_t)sizeof(Inspector);
+extern "C" umugu_node_fn getfn(umugu_code fn);
+extern "C" const umugu_var_info* vars;
+extern "C" const int32_t var_count = 4;
+
+const umugu_var_info* vars = &var_metadata[0];
+
+static int Init(umugu_node** node, umugu_signal* _)
 {
     Inspector* self = (Inspector*)*node;
     *node = (umugu_node*)((char*)*node + size);
@@ -25,17 +56,19 @@ static void Init(umugu_node** node, umugu_signal* _)
     self->stride = 2;
     self->size = 2048;
     self->pause = false;
-    self->values = (float*)(*umugu_get_context()->alloc)(self->size * self->stride * sizeof(float));
+    self->values = (float*)(*umugu_get_context()->alloc)(self->size * 2 * sizeof(float));
+    self->out_values = self->values;
+    return UMUGU_SUCCESS;
 }
 
-static void GetSignal(umugu_node** node, umugu_signal* out)
+static int GetSignal(umugu_node** node, umugu_signal* out)
 {
     Inspector* self = (Inspector*)*node;
     *node = (umugu_node*)((char*)*node + size);
 
     umugu_node_call(UMUGU_FN_GETSIGNAL, node, out);
     if (self->pause) {
-        return;
+        return UMUGU_SUCCESS;
     }
 
     float* fout = (float*)out->samples;
@@ -48,6 +81,8 @@ static void GetSignal(umugu_node** node, umugu_signal* out)
             self->it -= self->size;
         }
     }
+    self->out_values = self->values + self->it;
+    return UMUGU_SUCCESS;
 }
 
 umugu_node_fn getfn(umugu_code fn)

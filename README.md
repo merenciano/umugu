@@ -4,7 +4,8 @@
 # Audio effects framework
 
 Build prerequisites:
-- CMake (optional)
+- Linux
+- CMake 3.13 (optional)
 
 ## umugu
 - C99 Compiler

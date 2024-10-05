@@ -3,7 +3,7 @@ TabWidth: 4
 IndentWidth: 4
 InsertNewlineAtEOF: true
 Language: Cpp
-ColumnLimit: 100
+ColumnLimit: 80
 MaxEmptyLinesToKeep: 1
 PointerAlignment: Right
 ReferenceAlignment: Pointer

@@ -1,7 +1,7 @@
 #include "umugu_editor.h"
 
-#include "umugu.h"
-#include "umugu_internal.h"
+#include "../../umugu/src/nodes/builtin_nodes.h" // TODO: Waveforms in public api
+#include <umugu/umugu.h>
 
 #include "imgui/backends/imgui_impl_opengl3.h"
 #include "imgui/backends/imgui_impl_sdl2.h"
@@ -18,7 +18,6 @@
     ImPlot::PopStyleColor()
 
 static ImGuiIO* io;
-static bool show_demo_window = true;
 
 namespace umugu_editor {
 struct Window {
@@ -31,7 +30,7 @@ struct Window {
 
 Window window;
 
-const char* const SHAPE_NAMES[] = {
+[[maybe_unused]] const char* const SHAPE_NAMES[] = {
     "SINE",
     "SAW",
     "SQUARE",
@@ -41,103 +40,78 @@ const char* const SHAPE_NAMES[] = {
 
 static void DrawUnitUI(umugu_node** node)
 {
-#if 0
-    switch ((*node)->type) {
-    case UMUGU_NT_OSCOPE: {
-        auto self = (umugu_node_oscope*)*node;
-        *node = (umugu_node*)((char*)*node + sizeof(umugu_node_oscope));
-        ImGui::PushID(self);
-        ImGui::Separator();
-        ImGui::Text("Osciloscope");
-        if (ImGui::BeginCombo("Wave Shape", SHAPE_NAMES[self->shape], 0)) {
-            for (int j = 0; j < UMUGU_WF_COUNT; ++j) {
-                const bool selected = (self->shape == (umugu_waveforms)j);
-                if (ImGui::Selectable(SHAPE_NAMES[j], selected)) {
-                    self->shape = (umugu_waveforms)j;
-                }
+    umugu_node* self = *node;
+    const umugu_node_info* info = umugu_node_info_find(&self->name);
+    if (!info) {
+        printf("Node info not found.\n");
+        return;
+    }
+    *node = (umugu_node*)((char*)*node + info->size_bytes);
 
-                if (selected) {
-                    ImGui::SetItemDefaultFocus();
-                }
+    umugu_ctx* ctx = umugu_get_context();
+    if (ctx->pipeline.size_bytes > ((char*)*node - (char*)ctx->pipeline.root)) {
+        DrawUnitUI(node);
+    }
+
+    ImGui::PushID(self);
+    ImGui::Separator();
+    ImGui::TextUnformatted(info->name.str);
+    const int var_count = info->var_count;
+    for (int i = 0; i < var_count; ++i) {
+        const umugu_var_info* var = &info->vars[i];
+        char* value = ((char*)self + var->offset_bytes);
+        switch (var->type) {
+        case UMUGU_TYPE_PLOTLINE: {
+            if (ImPlot::BeginPlot("PlotLine")) {
+                ImPlot::PushStyleColor(ImPlotCol_Line, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+                ImPlot::PlotLine(var->name.str, *(float**)value, var->count);
+                ImPlot::PopStyleColor();
+                ImPlot::EndPlot();
             }
-            ImGui::EndCombo();
+            break;
         }
-        ImGui::InputInt("Frequency", &self->freq, 1, 10, 0);
-        ImGui::PopID();
-        break;
-    }
 
-    case UMUGU_NT_WAV_PLAYER: {
-        um__wav_player* self = (um__wav_player*)*node;
-        *node = (umugu_node*)((char*)*node + sizeof(um__wav_player));
-        ImGui::PushID(self);
-        ImGui::Separator();
-        ImGui::Text("File: %s", self->filename);
-        ImGui::PopID();
-        break;
-    }
-
-    case UMUGU_NT_MIXER: {
-        ImGui::PushID(*node);
-        *node = (umugu_node*)((char*)*node + sizeof(um__mixer));
-        ImGui::Separator();
-        ImGui::Text("Mix");
-        ImGui::PopID();
-        DrawUnitUI(node);
-        break;
-    }
-
-    case UMUGU_NT_INSPECTOR: {
-        umugu_node_inspector* self = (umugu_node_inspector*)*node;
-        *node = (umugu_node*)((char*)*node + sizeof(umugu_node_inspector));
-        ImGui::PushID(self);
-        ImGui::Separator();
-        if (ImPlot::BeginPlot("Inspector")) {
-            ImPlot::PushStyleColor(ImPlotCol_Line, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-            ImPlot::PlotLine("Wave", self->values + self->it, self->size);
-            ImPlot::PopStyleColor();
-
-            ImPlot::EndPlot();
+        case UMUGU_TYPE_FLOAT: {
+            ImGui::SliderScalarN(var->name.str, ImGuiDataType_Float, value, var->count, &var->range_min, &var->range_max, "%.2f");
+            break;
         }
-        if (self->pause) {
-            ImGui::InputInt("Stride", &self->stride, 0, 1024, 0);
-            ImGui::InputInt("Offset", &self->offset, 0, 1024, 0);
+
+        case UMUGU_TYPE_INT32: {
+            int range[] = { (int)var->range_min, (int)var->range_max };
+            ImGui::SliderScalarN(var->name.str, ImGuiDataType_S32, value, var->count, range, range + 1, "%d");
+            break;
         }
-        ImGui::Checkbox("Paused", (bool*)&self->pause);
-        ImGui::PopID();
-        DrawUnitUI(node);
-        break;
+
+        case UMUGU_TYPE_INT16: {
+            int16_t range[] = { (int16_t)var->range_min, (int16_t)var->range_max };
+            ImGui::SliderScalarN(var->name.str, ImGuiDataType_S16, value, var->count, range, range + 1, "%d");
+            break;
+        }
+
+        case UMUGU_TYPE_INT8: {
+            int8_t range[] = { (int8_t)var->range_min, (int8_t)var->range_max };
+            ImGui::SliderScalarN(var->name.str, ImGuiDataType_S8, value, var->count, range, range + 1, "%d");
+            break;
+        }
+
+        case UMUGU_TYPE_BOOL: {
+            ImGui::Checkbox(var->name.str, (bool*)value);
+            break;
+        }
+
+        case UMUGU_TYPE_TEXT: {
+            ImGui::InputText(var->name.str, value, var->count);
+            break;
+        }
+
+        default: {
+            ImGui::Text("Type %d not implemented", var->type);
+            break;
+        }
+        }
     }
 
-    case UMUGU_NT_AMPLITUDE: {
-        um__amplitude* self = (um__amplitude*)*node;
-        *node = (umugu_node*)((char*)*node + sizeof(um__amplitude));
-        ImGui::PushID(self);
-        ImGui::Separator();
-        ImGui::Text("Volume");
-        ImGui::InputFloat("Multiplier:", &self->multiplier, 0, 100, 0);
-        ImGui::PopID();
-        DrawUnitUI(node);
-        break;
-    }
-
-    case UMUGU_NT_LIMITER: {
-        um__limiter* self = (um__limiter*)*node;
-        *node = (umugu_node*)((char*)*node + sizeof(um__limiter));
-        ImGui::PushID(self);
-        ImGui::Separator();
-        ImGui::Text("Clamp");
-        ImGui::InputFloat("Lower Limit:", &self->min, -2.0f, 2.0f, 0);
-        ImGui::InputFloat("Upper Limit:", &self->max, -2.0f, 2.0f, 0);
-        ImGui::PopID();
-        DrawUnitUI(node);
-        break;
-    }
-
-    default:
-        break;
-    }
-#endif
+    ImGui::PopID();
 }
 
 static void GraphWindow()
@@ -168,8 +142,8 @@ static void InitUI()
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
-    SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
-    window.native_win = SDL_CreateWindow("Venga, a ver si te buscas una musiquilla guapa, no colega?", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1920, 1080, window_flags);
+    int window_flags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
+    window.native_win = SDL_CreateWindow("Venga, a ver si te buscas una musiquilla guapa, no colega?", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1024, 720, window_flags);
     window.gl_context = SDL_GL_CreateContext((SDL_Window*)window.native_win);
     SDL_GL_MakeCurrent((SDL_Window*)window.native_win, window.gl_context);
     SDL_GL_SetSwapInterval(1);
@@ -209,11 +183,12 @@ void Render()
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
 
+    GraphWindow();
+
+    static bool show_demo_window = false;
     if (show_demo_window) {
         ImGui::ShowDemoWindow(&show_demo_window);
     }
-
-    GraphWindow();
 
     ImGui::Begin("Hello, world!");
     ImGui::Checkbox("Demo Window", &show_demo_window);
@@ -228,6 +203,7 @@ void Render()
     }
 
     ImGui::End();
+
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     SDL_GL_SwapWindow((SDL_Window*)window.native_win);
@@ -250,7 +226,7 @@ void Close()
 void Init()
 {
     umugu_init();
-    umugu_load_pipeline_bin("../assets/pipelines/littlewing.bin");
+    umugu_load_pipeline_bin("../assets/pipelines/plugtest.bin");
 
     umugu_start_stream();
     InitUI();

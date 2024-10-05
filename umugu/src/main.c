@@ -2,15 +2,11 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <stdio.h>
 
-static void dummy_assert(int cond)
+static void um__assert(int cond)
 {
-    (void)cond;
-}
-
-static void dummy_print(int lvl, const char *fmt, ...)
-{
-    (void)lvl; (void)fmt;
+    assert(cond);
 }
 
 int main(int argc, char **argv)
@@ -19,8 +15,8 @@ int main(int argc, char **argv)
     ctx->alloc = malloc;
     ctx->free = free;
     ctx->abort = abort;
-    ctx->assert = dummy_assert;
-    ctx->log = dummy_print;
+    ctx->assert = um__assert;
+    ctx->log = printf;
 
 	umugu_init();
     if (argc > 1) {

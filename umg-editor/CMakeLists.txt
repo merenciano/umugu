@@ -34,7 +34,7 @@ target_compile_options(umg-editor PUBLIC
 )
 
 target_include_directories(umg-editor PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/../umugu/include/umugu
+    ${CMAKE_CURRENT_SOURCE_DIR}/../umugu/include
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/include
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
@@ -53,6 +53,12 @@ target_sources(umg-editor PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/src/imgui_tables.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/src/implot.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/src/implot_items.cpp
+)
+
+target_link_options(umg-editor PUBLIC
+    #-fsanitize=address,undefined
+    "LINKER:-rpath,${CMAKE_CURRENT_SOURCE_DIR}/../assets/plugs"
+    -rdynamic
 )
 
 target_link_directories(umg-editor PRIVATE

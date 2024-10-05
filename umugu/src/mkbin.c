@@ -20,7 +20,7 @@ int main(int argc, char **argv)
     int version = 1 << 10;
     fwrite(&version , 4, 1, f);
 
-    size_t pipeline_size = 264;
+    size_t pipeline_size = 272;
     fwrite(&pipeline_size, 8, 1, f);
 
     char limiter_name[32] = "Limiter";
@@ -38,8 +38,8 @@ int main(int argc, char **argv)
 
     char inspec_name[32] = "Inspector";
     fwrite(inspec_name, 32, 1, f);
-    int64_t padd[4] = {-1, -1, -1, -1};
-    fwrite(&padd, 4 * sizeof(int64_t), 1, f);
+    int64_t padd[5] = {-1, -1, -1, -1, -1};
+    fwrite(&padd, 5 * sizeof(int64_t), 1, f);
 
     char wav_name[32] = "WavFilePlayer";
     fwrite(wav_name, 32, 1, f);

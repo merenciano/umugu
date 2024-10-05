@@ -1,12 +1,33 @@
-#include "umugu_internal.h"
+#include "builtin_nodes.h"
+#include "umugu.h"
 
-static inline void um__init(umugu_node **node, umugu_signal *_)
+typedef struct {
+    umugu_node node;
+    float multiplier;
+    int32_t padding;
+} um__amplitude;
+
+const int32_t um__amplitude_size = (int32_t)sizeof(um__amplitude);
+const int32_t um__amplitude_var_count = 1;
+
+const umugu_var_info um__amplitude_vars[] = {
+    { .name = {.str = "Multiplier"},
+      .offset_bytes = offsetof(um__amplitude, multiplier),
+      .type = UMUGU_TYPE_FLOAT,
+      .count = 1,
+      .range_min = 0.0f,
+      .range_max = 5.0f
+    }
+};
+
+static inline int um__init(umugu_node **node, umugu_signal *_)
 {
     *node = (void*)((char*)*node + sizeof(um__amplitude));
     umugu_node_call(UMUGU_FN_INIT, node, _);
+    return UMUGU_SUCCESS;
 }
 
-static inline void um__getsignal(umugu_node **node, umugu_signal *out)
+static inline int um__getsignal(umugu_node **node, umugu_signal *out)
 {
     um__amplitude *self = (void*)*node;
     *node = (void*)((char*)*node + sizeof(um__amplitude));
@@ -17,6 +38,7 @@ static inline void um__getsignal(umugu_node **node, umugu_signal *out)
         out->samples[i].left *= self->multiplier;
         out->samples[i].right *= self->multiplier;
     }
+    return UMUGU_SUCCESS;
 }
 
 umugu_node_fn um__amplitude_getfn(umugu_code fn)
