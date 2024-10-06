@@ -60,6 +60,8 @@ static void DrawUnitUI(umugu_node** node)
     for (int i = 0; i < var_count; ++i) {
         const umugu_var_info* var = &info->vars[i];
         char* value = ((char*)self + var->offset_bytes);
+        int step = 1;
+        int fastep = 50;
         switch (var->type) {
         case UMUGU_TYPE_PLOTLINE: {
             if (ImPlot::BeginPlot("PlotLine")) {
@@ -72,25 +74,22 @@ static void DrawUnitUI(umugu_node** node)
         }
 
         case UMUGU_TYPE_FLOAT: {
-            ImGui::SliderScalarN(var->name.str, ImGuiDataType_Float, value, var->count, &var->range_min, &var->range_max, "%.2f");
+            ImGui::SliderScalarN(var->name.str, ImGuiDataType_Float, value, var->count, &var->misc.range.min, &var->misc.range.max, "%.2f");
             break;
         }
 
         case UMUGU_TYPE_INT32: {
-            int range[] = { (int)var->range_min, (int)var->range_max };
-            ImGui::SliderScalarN(var->name.str, ImGuiDataType_S32, value, var->count, range, range + 1, "%d");
+            ImGui::InputScalarN(var->name.str, ImGuiDataType_S32, value, var->count, &step, &fastep, "%d");
             break;
         }
 
         case UMUGU_TYPE_INT16: {
-            int16_t range[] = { (int16_t)var->range_min, (int16_t)var->range_max };
-            ImGui::SliderScalarN(var->name.str, ImGuiDataType_S16, value, var->count, range, range + 1, "%d");
+            ImGui::InputScalarN(var->name.str, ImGuiDataType_S16, value, var->count, &step, &fastep, "%d");
             break;
         }
 
-        case UMUGU_TYPE_INT8: {
-            int8_t range[] = { (int8_t)var->range_min, (int8_t)var->range_max };
-            ImGui::SliderScalarN(var->name.str, ImGuiDataType_S8, value, var->count, range, range + 1, "%d");
+        case UMUGU_TYPE_UINT8: {
+            ImGui::InputScalarN(var->name.str, ImGuiDataType_U8, value, var->count, &step, &fastep, "%u");
             break;
         }
 
@@ -118,6 +117,7 @@ static void GraphWindow()
 {
     umugu_node* it = umugu_get_context()->pipeline.root;
     ImGui::Begin("Graph");
+    ImGui::Text("Available time for the callback: %lf", umugu_get_context()->audio_output.time_margin_sec);
     DrawUnitUI(&it);
     ImGui::End();
 }
@@ -132,7 +132,7 @@ static void InitUI()
     window.glsl_ver = "#version 130";
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 
 #ifdef SDL_HINT_IME_SHOW_UI

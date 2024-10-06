@@ -7,8 +7,6 @@
 #include <stdlib.h>
 #include <dlfcn.h>
 
-#define UMUGU_CONFIG_NODE_INFO_CAPACITY 64
-
 #define UMUGU_HEAD_CODE 0x00454549
 #define UMUGU_TAIL_CODE 0x00555541
 
@@ -18,21 +16,68 @@
       UMUGU_VERSION_PATCH)
 
 
-umugu_node_info g_builtin_nodes_info[UM__BUILTIN_NODES_COUNT];
-/* The default ctx relies in being zero-initialized for being static. */
-static umugu_ctx g_default_ctx = {
-    .nodes_info_capacity = UMUGU_CONFIG_NODE_INFO_CAPACITY,
-    .sample_rate = UMUGU_SAMPLE_RATE,
-    .audio_src_sample_capacity = 1024
-};
+static umugu_ctx g_default_ctx; /* Relying on zero-init from static memory. */
 static umugu_ctx *g_ctx = &g_default_ctx;
+
+umugu_node_info g_builtin_nodes_info[UM__BUILTIN_NODES_COUNT];
+
+static inline int um__node_info_builtin_load(void)
+{
+    g_builtin_nodes_info[0] = (umugu_node_info) {
+        .name = {.str = "Oscilloscope"},
+        .size_bytes = um__oscope_size, 
+        .var_count = um__oscope_var_count,
+        .getfn = um__oscope_getfn, 
+        .vars = um__oscope_vars,
+        .plug_handle = NULL
+    };
+
+    g_builtin_nodes_info[1] = (umugu_node_info) {
+        .name = {.str = "WavFilePlayer"},
+        .size_bytes = um__wavplayer_size,
+        .var_count = um__wavplayer_var_count,
+        .getfn = um__wavplayer_getfn,
+        .vars = um__wavplayer_vars,
+        .plug_handle = NULL
+    };
+
+    g_builtin_nodes_info[2] = (umugu_node_info) {
+        .name = {.str = "Mixer"},
+        .size_bytes = um__mixer_size,
+        .var_count = um__mixer_var_count,
+        .getfn = um__mixer_getfn,
+        .vars = um__mixer_vars,
+        .plug_handle = NULL
+    };
+
+    g_builtin_nodes_info[3] = (umugu_node_info) {
+        .name = {.str = "Amplitude"},
+        .size_bytes = um__amplitude_size,
+        .var_count = um__amplitude_var_count,
+        .getfn = um__amplitude_getfn,
+        .vars = um__amplitude_vars,
+        .plug_handle = NULL
+    };
+
+    g_builtin_nodes_info[4] = (umugu_node_info) {
+        .name = {.str = "Limiter"},
+        .size_bytes = um__limiter_size,
+        .var_count = um__limiter_var_count,
+        .getfn = um__limiter_getfn,
+        .vars = um__limiter_vars,
+        .plug_handle = NULL
+    };
+
+    return UMUGU_SUCCESS;
+}
 
 static inline int um__name_equals(const umugu_name *a, const umugu_name *b)
 {
     return !memcmp(a, b, UMUGU_NAME_LEN);
 }
 
-static inline const umugu_node_info * um__node_info_builtin_find(const umugu_name *name) {
+static inline const umugu_node_info *
+um__node_info_builtin_find(const umugu_name *name) {
     for (int i = 0; i < UM__BUILTIN_NODES_COUNT; ++i) {
         if (!strncmp(g_builtin_nodes_info[i].name.str, name->str,
                      UMUGU_NAME_LEN)) {
@@ -66,7 +111,7 @@ umugu_node_info_load(const umugu_name *name)
     const umugu_node_info *bi_info = um__node_info_builtin_find(name);
     if (bi_info) {
         /* Add the node info to the current context. */
-        g_ctx->assert(g_ctx->nodes_info_next < g_ctx->nodes_info_capacity);
+        g_ctx->assert(g_ctx->nodes_info_next < UMUGU_DEFAULT_NODE_INFO_CAPACITY);
         umugu_node_info *info = &g_ctx->nodes_info[g_ctx->nodes_info_next++];
         memcpy(info, bi_info, sizeof(umugu_node_info));
         return info;
@@ -168,60 +213,6 @@ int umugu_load_pipeline_bin(const char *filename)
     return UMUGU_SUCCESS;
 }
 
-void umugu_init(void)
-{
-    g_ctx->nodes_info = g_ctx->alloc(g_ctx->nodes_info_capacity * sizeof(umugu_node_info));
-    g_ctx->nodes_info_next = 0;
-
-    /* Init built-in nodes. */
-    g_builtin_nodes_info[0] = (umugu_node_info) {
-        .name = {.str = "Oscilloscope"},
-        .size_bytes = um__oscope_size, 
-        .var_count = um__oscope_var_count,
-        .getfn = um__oscope_getfn, 
-        .vars = um__oscope_vars,
-        .plug_handle = NULL
-    };
-
-    g_builtin_nodes_info[1] = (umugu_node_info) {
-        .name = {.str = "WavFilePlayer"},
-        .size_bytes = um__wavplayer_size,
-        .var_count = um__wavplayer_var_count,
-        .getfn = um__wavplayer_getfn,
-        .vars = um__wavplayer_vars,
-        .plug_handle = NULL
-    };
-
-    g_builtin_nodes_info[2] = (umugu_node_info) {
-        .name = {.str = "Mixer"},
-        .size_bytes = um__mixer_size,
-        .var_count = um__mixer_var_count,
-        .getfn = um__mixer_getfn,
-        .vars = um__mixer_vars,
-        .plug_handle = NULL
-    };
-
-    g_builtin_nodes_info[3] = (umugu_node_info) {
-        .name = {.str = "Amplitude"},
-        .size_bytes = um__amplitude_size,
-        .var_count = um__amplitude_var_count,
-        .getfn = um__amplitude_getfn,
-        .vars = um__amplitude_vars,
-        .plug_handle = NULL
-    };
-
-    g_builtin_nodes_info[4] = (umugu_node_info) {
-        .name = {.str = "Limiter"},
-        .size_bytes = um__limiter_size,
-        .var_count = um__limiter_var_count,
-        .getfn = um__limiter_getfn,
-        .vars = um__limiter_vars,
-        .plug_handle = NULL
-    };
-
-    umugu_init_backend();
-}
-
 int umugu_node_call(umugu_fn fn, umugu_node **node, umugu_signal *out)
 {
     const umugu_name *name = (umugu_name*)*node;
@@ -242,7 +233,7 @@ int umugu_plug(const umugu_name *name)
     char buf[1024];
     snprintf(buf, 1024, "lib%s.so", name->str);
     
-    g_ctx->assert(g_ctx->nodes_info_next < g_ctx->nodes_info_capacity);
+    g_ctx->assert(g_ctx->nodes_info_next < UMUGU_DEFAULT_NODE_INFO_CAPACITY);
     void *hnd = dlopen(buf, RTLD_NOW);
     if (!hnd) {
         g_ctx->log("Can't load plug: dlopen(%s) failed.", buf);
@@ -272,7 +263,67 @@ void umugu_unplug(const umugu_name *name)
     }
 }
 
-void umugu_close(void)
+int umugu_init(void)
 {
-    umugu_close_backend();
+    if (g_ctx->audio_output.open) {
+        g_ctx->log(
+"Umugu has already been initialized and the audio backend is loaded.\n"
+"Ignoring this umugu_init() call...\n");
+        return UMUGU_NOOP;
+    }
+
+    um__node_info_builtin_load();
+
+    if (um__backend_init() == UMUGU_SUCCESS) {
+        g_ctx->audio_output.open = 1;
+    }
+
+    return UMUGU_SUCCESS;
+}
+
+int umugu_start_stream(void)
+{
+    if (g_ctx->audio_output.running) {
+        g_ctx->log(
+"The output stream is already running.\n"
+"Ignoring this umugu_start_stream() call.\n");
+        return UMUGU_NOOP;
+    }
+    
+    int ret = um__backend_start_stream();
+    if (ret == UMUGU_SUCCESS) {
+        g_ctx->audio_output.running = 1;
+        return UMUGU_SUCCESS;
+    }
+
+    g_ctx->log("Unable to start the stream. Error %d.\n", ret);
+    return UMUGU_ERR_STREAM;
+}
+
+int umugu_stop_stream(void)
+{
+    if (!g_ctx->audio_output.running) {
+        g_ctx->log(
+"Trying to stop a stopped stream.\n"
+"Ignoring this umugu_stop_stream() call.\n");
+        return UMUGU_NOOP;
+    }
+    
+    int ret = um__backend_stop_stream();
+    if (ret == UMUGU_SUCCESS) {
+        g_ctx->audio_output.running = 0;
+        return UMUGU_SUCCESS;
+    }
+
+    g_ctx->log("Unable to stop the stream. Error %d.\n", ret);
+    return UMUGU_ERR_STREAM;
+}
+
+int umugu_close(void)
+{
+    /* This will abort the output stream if not stopped.
+     * No point in checking. */
+    g_ctx->audio_output.running = 0;
+    g_ctx->audio_output.open = 0;
+    return um__backend_close();
 }

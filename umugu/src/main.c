@@ -14,7 +14,6 @@ int main(int argc, char **argv)
     umugu_ctx *ctx = umugu_get_context();
     ctx->alloc = malloc;
     ctx->free = free;
-    ctx->abort = abort;
     ctx->assert = um__assert;
     ctx->log = printf;
 
@@ -22,12 +21,13 @@ int main(int argc, char **argv)
     if (argc > 1) {
         umugu_load_pipeline_bin(argv[1]);
     } else {
-        umugu_load_pipeline_bin("../assets/pipelines/littlewing.bin");
+        umugu_load_pipeline_bin("../assets/pipelines/plugtest.bin");
     }
 
 	umugu_start_stream();
-
     sleep(60);
+    umugu_stop_stream();
+    umugu_close();
 
 	return 0;
 }

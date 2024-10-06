@@ -15,7 +15,6 @@ int main()
     umugu_ctx* ctx = umugu_get_context();
     ctx->alloc = malloc;
     ctx->free = free;
-    ctx->abort = abort;
     ctx->assert = um__assert;
     ctx->log = printf;
     umugu_editor::Init();

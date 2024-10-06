@@ -6,87 +6,142 @@
 
 typedef struct {
     umugu_node node;
-    umugu_sample *audio_source;
-    size_t sample_capacity;
+    umugu_signal source;
     char filename[UMUGU_PATH_LEN];
     void *file_handle;
 } um__wavplayer;
 
 const int32_t um__wavplayer_size = (int32_t)sizeof(um__wavplayer);
-const int32_t um__wavplayer_var_count = 1;
+const int32_t um__wavplayer_var_count = 3;
 
 const umugu_var_info um__wavplayer_vars[] = {
+    {
+        .name = {.str = "Sample rate"},
+        .offset_bytes = offsetof(um__wavplayer, source) +
+            offsetof(umugu_signal, rate),
+        .type = UMUGU_TYPE_INT32,
+        .count = 1,
+        .misc.range.min = 0.0f,
+        .misc.range.max = 96000.0f
+    },
+    {
+        .name = {.str = "Value type"},
+        .offset_bytes = offsetof(um__wavplayer, source) +
+            offsetof(umugu_signal, type),
+        .type = UMUGU_TYPE_INT16,
+        .count = 1,
+        .misc.range.min = 64,
+        .misc.range.max = 128 
+    },
+    {
+        .name = {.str = "Channels"},
+        .offset_bytes = offsetof(um__wavplayer, source) +
+            offsetof(umugu_signal, channels),
+        .type = UMUGU_TYPE_INT16,
+        .count = 1,
+        .misc.range.min = 1.0f,
+        .misc.range.max = 16.0f
+    },
     {
         .name = {.str = "Filename"},
         .offset_bytes = offsetof(um__wavplayer, filename),
         .type = UMUGU_TYPE_TEXT,
         .count = UMUGU_PATH_LEN,
-        .range_min = 0.0f,
-        .range_max = 127.0f
+        .misc.range.min = 0.0f,
+        .misc.range.max = 127.0f
     }
 };
 
+static inline int um__getsize(int type)
+{
+    switch(type) {
+        case UMUGU_TYPE_INT16: return 2;
+        case UMUGU_TYPE_INT32: return 4;
+        case UMUGU_TYPE_FLOAT: return 4;
+        default: umugu_get_context()->assert(0); return 0;
+    }
+}
+
+static inline float um__inv_range(int type)
+{
+    switch(type) {
+        case UMUGU_TYPE_INT16: return 1.0f / 32768.0f;
+        case UMUGU_TYPE_INT32: return 1.0f / 2147483647.0f;
+        case UMUGU_TYPE_FLOAT: return 1.0f;
+        default: umugu_get_context()->assert(0); return 0;
+    }
+}
 
 static inline int um__init(umugu_node **node, umugu_signal *_)
 {
     (void)_;
     umugu_ctx *ctx = umugu_get_context();
-    um__wavplayer *self = (void*)*node;
-    *node = (void*)((char*)*node + sizeof(um__wavplayer));
+    um__wavplayer *self = (um__wavplayer*)*node;
+    *node = (umugu_node*)((char*)*node + sizeof(um__wavplayer));
 
     self->file_handle = fopen(self->filename, "rb");
     if (!self->file_handle) {
         ctx->log("Couldn't open %s\n", self->filename); 
         /* TODO(qol): dummy wav file as a backup */
-        ctx->abort();
         return UMUGU_ERR_FILE;
     }
 
-    self->sample_capacity = ctx->audio_src_sample_capacity;
-    self->audio_source = ctx->alloc(self->sample_capacity * sizeof(umugu_sample));
+    /* Advance the file read ptr to where the waveform data starts.
+     * While I'm here I'm going to assign the signal format from the header. */
+    char header[44];
+    fread(header, 44, 1, self->file_handle);
+    self->source.channels = *(int16_t*)(header + 22);
+    self->source.rate = *(int*)(header + 24);
+
+    /* Here I'm deducing the type format given the byte size:
+     *   - 1 byte : UINT8. UMUGU_TYPE_UINT8 = 64 so 63 + size is correct
+     *   - 2 bytes: INT16. UMUGU_TYPE_INT16 = 65 so 63 + size is correct
+     *   - 4 bytes: FLOAT. UMUGU_TYPE_FLOAT = 67 so 63 + size is correct */
+    int sample_bytes = header[34] / 8;
+    self->source.type = 63 + sample_bytes;
+
+    /* The standard way would be checking first if it's int or float..
+     * int type = header[20] == 1 ? INTEGER : FLOAT; // It can be 1 (int) or 3 (float)
+     * And then checking the size in bytes..
+     * sample_bytes = header[34] / 8;
+     * Note that in WAV format, integers of 8- bits are unsigned and 9+ signed. 
+     */
+    self->source.capacity = UMUGU_DEFAULT_SAMPLE_CAPACITY;
+    self->source.frames = ctx->alloc(self->source.capacity * 
+        sample_bytes * self->source.channels);
+    self->source.count = 0;
+    
     return UMUGU_SUCCESS;
 }
 
+/* TODO: Implement this node type mmapping the wav. */
 static inline int um__getsignal(umugu_node **node, umugu_signal *out)
 {
     umugu_ctx *ctx = umugu_get_context();
-    const float inv_sig_range = 1.0f / 32768.0f;
     um__wavplayer *self = (void*)*node;
     *node = (void*)((char*)*node + sizeof(um__wavplayer));
-    const int64_t count = out->count;
 
-    if (count > (int64_t)self->sample_capacity) {
-        self->sample_capacity *= 2;
-        if (self->sample_capacity < 256) {
-            self->sample_capacity = 256;
-        }
+    self->source.count = out->count;
+    ctx->assert(self->source.count < self->source.capacity);
 
-        ctx->free(self->audio_source);
-        /* No point on checking the alloc return in a temp variable since
-           keeping a buffer smaller than count is critical error anyway.
-           TODO(qol): add a static zeroed audio source as a backup in order
-                      to not abort if one source fails.
-         */
-        self->audio_source = ctx->alloc(self->sample_capacity * sizeof(umugu_sample));
-        if (!self->audio_source) {
-            ctx->log("Error (wav_player): BadAlloc.\n");
-            self->sample_capacity = 0;
-            self->audio_source = NULL;
-            ctx->abort();
-            return UMUGU_ERR_MEM;
+    fread(self->source.frames, self->source.count * self->source.channels *
+        um__getsize(self->source.type), 1, (FILE*)self->file_handle);
+
+    const float inv_range = um__inv_range(self->source.type);
+
+    /* For now we're assuming that te wav is also 48000 samples rate
+        and signed int16. */
+    int16_t *it = (int16_t*)(self->source.frames);
+    for (int i = 0; i < out->count; ++i) {
+        if (self->source.channels == 2) {
+            out->frames[i].left = *it++ * inv_range;
+            out->frames[i].right = *it++ * inv_range;
+        } else {
+            out->frames[i].left = *it * inv_range;
+            out->frames[i].right = *it++ * inv_range;
         }
     }
 
-    /* TODO: Support Mono and different sample rate than output stream. */
-    fread(self->audio_source, count * 4, 1, (FILE*)self->file_handle); /* size 4 -> 2 bytes stereo */
-
-    short* it = (short*)self->audio_source + count * 2 - 1;
-    for (int i = count - 1; i >= 0; --i) {
-        self->audio_source[i].right = *it-- * inv_sig_range;
-        self->audio_source[i].left = *it-- * inv_sig_range;
-    }
-
-    out->samples = self->audio_source;
     return UMUGU_SUCCESS;
 }
 

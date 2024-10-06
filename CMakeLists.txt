@@ -3,6 +3,15 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 
 project (Umugu VERSION 0.0.1)
 
+set(UMUGU_BACKEND_PORTAUDIO true)
+
+set(UMUGU_BACKEND_STDOUT false)
+
+add_compile_definitions(
+    $<$<BOOL:${UMUGU_BACKEND_PORTAUDIO}>:UMUGU_BACKEND_PORTAUDIO>
+    $<$<BOOL:${UMUGU_BACKEND_STDOUT}>:UMUGU_BACKEND_STDOUT>
+)
+
 add_subdirectory(umugu)
 add_subdirectory(umg-editor)
 add_subdirectory(umg-plugs)

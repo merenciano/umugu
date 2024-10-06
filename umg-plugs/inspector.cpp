@@ -17,26 +17,22 @@ static const umugu_var_info var_metadata[] = {
         .offset_bytes = offsetof(Inspector, out_values),
         .type = UMUGU_TYPE_PLOTLINE,
         .count = 2048,
-        .range_min = 0,
-        .range_max = 2048 },
+        .misc = { .range = { .min = 0, .max = 2048 } } },
     { .name = { .str = "Stride" },
         .offset_bytes = offsetof(Inspector, stride),
         .type = UMUGU_TYPE_INT32,
         .count = 1,
-        .range_min = 1,
-        .range_max = 1024 },
+        .misc = { .range = { .min = 1, .max = 1024 } } },
     { .name = { .str = "Offset" },
         .offset_bytes = offsetof(Inspector, offset),
         .type = UMUGU_TYPE_INT32,
         .count = 1,
-        .range_min = 1,
-        .range_max = 1024 },
+        .misc = { .range = { .min = 1, .max = 1024 } } },
     { .name = { .str = "Pause" },
         .offset_bytes = offsetof(Inspector, pause),
         .type = UMUGU_TYPE_BOOL,
         .count = 1,
-        .range_min = 0,
-        .range_max = 1 }
+        .misc = { .range = { .min = 0, .max = 1 } } },
 };
 
 extern "C" const int32_t size = (int32_t)sizeof(Inspector);
@@ -71,7 +67,7 @@ static int GetSignal(umugu_node** node, umugu_signal* out)
         return UMUGU_SUCCESS;
     }
 
-    float* fout = (float*)out->samples;
+    float* fout = (float*)out->frames;
     const int count = out->count;
     for (int i = self->offset; i < count * 2; i += self->stride) {
         self->values[self->it] = fout[i];

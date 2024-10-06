@@ -22,13 +22,8 @@ target_compile_options(Inspector PRIVATE
 
 target_include_directories(Inspector PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../umugu/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../umg-editor/extern/include
 )
 
 target_sources(Inspector PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/inspector.cpp
-)
-
-target_link_libraries(Inspector PRIVATE
-    imgui
 )

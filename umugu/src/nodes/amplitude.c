@@ -15,8 +15,8 @@ const umugu_var_info um__amplitude_vars[] = {
       .offset_bytes = offsetof(um__amplitude, multiplier),
       .type = UMUGU_TYPE_FLOAT,
       .count = 1,
-      .range_min = 0.0f,
-      .range_max = 5.0f
+      .misc.range.min = 0.0f,
+      .misc.range.max = 5.0f
     }
 };
 
@@ -35,8 +35,8 @@ static inline int um__getsignal(umugu_node **node, umugu_signal *out)
     umugu_node_call(UMUGU_FN_GETSIGNAL, node, out);
     const int count = out->count;
     for (int i = 0; i < count; ++i) {
-        out->samples[i].left *= self->multiplier;
-        out->samples[i].right *= self->multiplier;
+        out->frames[i].left *= self->multiplier;
+        out->frames[i].right *= self->multiplier;
     }
     return UMUGU_SUCCESS;
 }

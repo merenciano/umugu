@@ -20,7 +20,7 @@ int main(int argc, char **argv)
     int version = 1 << 10;
     fwrite(&version , 4, 1, f);
 
-    size_t pipeline_size = 272;
+    size_t pipeline_size = 288;
     fwrite(&pipeline_size, 8, 1, f);
 
     char limiter_name[32] = "Limiter";
@@ -45,19 +45,27 @@ int main(int argc, char **argv)
     fwrite(wav_name, 32, 1, f);
 
     struct {
-        void *ptr;
-        size_t cap;
+        void *samples;
+        int64_t samplcount;
+        int32_t sample_rate;
+        int16_t value_type;
+        int16_t channels;
+        int64_t capacity_samples;
     } samples;
 
-    samples.ptr = NULL;
-    samples.cap = 1024;
+    samples.samples = NULL;
+    samples.samplcount = 0;
+    samples.sample_rate = 48000;
+    samples.value_type = 65,
+    samples.channels = 2,
+    samples.capacity_samples= 0;
 
-    fwrite(&samples, 16, 1, f);
+    fwrite(&samples, 32, 1, f);
 
     char filename[64] = "../assets/audio/littlewing.wav";
     fwrite(filename, 64, 1, f);
     
-    fwrite(&samples.ptr, 8, 1, f);
+    fwrite(&samples.samples, 8, 1, f);
 
     fwrite("AUU", 4, 1, f);
 

@@ -16,8 +16,8 @@ const umugu_var_info um__mixer_vars[] = {
         .offset_bytes = offsetof(um__mixer, input_count),
         .type = UMUGU_TYPE_INT32,
         .count = 1,
-        .range_min = 0,
-        .range_max = 8
+        .misc.range.min = 0,
+        .misc.range.max = 8
     }
 };
 
@@ -43,15 +43,15 @@ static inline int um__getsignal(umugu_node **node, umugu_signal *out)
         umugu_signal tmp = {.count = sample_count};
         umugu_node_call(UMUGU_FN_GETSIGNAL, node, &tmp);
         for (int j = 0; j < sample_count; ++j) {
-            out->samples[j].left += tmp.samples[j].left;
-            out->samples[j].right += tmp.samples[j].right;
+            out->frames[j].left += tmp.frames[j].left;
+            out->frames[j].right += tmp.frames[j].right;
         }
     }
 
     float inv_count = 1.0f / self->input_count;
     for (int i = 0; i < sample_count; i++) {
-        out->samples[i].left *= inv_count;
-        out->samples[i].right *= inv_count;
+        out->frames[i].left *= inv_count;
+        out->frames[i].right *= inv_count;
     }
     return UMUGU_SUCCESS;
 }

@@ -1,12 +1,10 @@
 #ifndef __UMUGU_INTERNAL_H__
 #define __UMUGU_INTERNAL_H__
 
-#include "umugu.h"
+int um__backend_start_stream(void);
+int um__backend_stop_stream(void);
 
-void umugu_init_backend(void);
-void umugu_close_backend(void);
-
-/* INTERNAL HELPERS */
-static inline void um__unused(void *unused_var) { (void)unused_var; }
+int um__backend_init(void);
+int um__backend_close(void);
 
 #endif /* __UMUGU_INTERNAL_H__ */

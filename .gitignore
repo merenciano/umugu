@@ -5,3 +5,4 @@ assets/
 bin/
 build/
 umugu/lib/
+umg-editor/extern/lib/
