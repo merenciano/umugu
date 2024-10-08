@@ -44,13 +44,6 @@
         - Change pointers with arena offsets in serialized structs (I want .bin
    compat between 32-64 bit systems).
         - Get rid of heap allocations.
-
-        - Move the audio backend implementation (portaudio19) to umg-player
-   (abstract libumugu.a from audio backends)
-
-    Symbol prefix:
-        - Public interface: umugu_
-        - Private impl:     um__
 */
 
 #ifndef __UMUGU_H__
@@ -60,18 +53,36 @@
 #include <stdint.h>
 
 #define UMUGU_VERSION_MAJOR 0
-#define UMUGU_VERSION_MINOR 2
+#define UMUGU_VERSION_MINOR 3
 #define UMUGU_VERSION_PATCH 0
 
+#ifndef UMUGU_SAMPLE_RATE
 #define UMUGU_SAMPLE_RATE 48000
+#endif
+
+#ifndef UMUGU_SAMPLE_TYPE
 #define UMUGU_SAMPLE_TYPE UMUGU_TYPE_FLOAT
+#endif
+
+#ifndef UMUGU_CHANNELS
 #define UMUGU_CHANNELS 2
+#endif
 
+#ifndef UMUGU_NAME_LEN
 #define UMUGU_NAME_LEN 32
-#define UMUGU_PATH_LEN 64
+#endif
 
+#ifndef UMUGU_PATH_LEN
+#define UMUGU_PATH_LEN 64
+#endif
+
+#ifndef UMUGU_DEFAULT_SAMPLE_CAPACITY
 #define UMUGU_DEFAULT_SAMPLE_CAPACITY 1024
+#endif
+
+#ifndef UMUGU_DEFAULT_NODE_INFO_CAPACITY
 #define UMUGU_DEFAULT_NODE_INFO_CAPACITY 64
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -119,11 +130,11 @@ typedef struct {
  * correctly or convert the signal to another format. */
 typedef struct {
     umugu_frame *frames;
-    int64_t count;
-    int32_t rate;     /* e.g. 48000 */
-    int16_t type;     /* e.g. UMUGU_TYPE_INT16 */
-    int16_t channels; /* e.g. 2 (stereo) */
-    int64_t capacity; /* more than count */
+    int64_t count;    /* number of frames in the signal */
+    int32_t rate;     /* sample rate (samples per sec) */
+    int16_t type;     /* type of each sample value */
+    int16_t channels; /* number of channels, e.g. 2 for stereo */
+    int64_t capacity; /* max frame capacity (greater than count) */
 } umugu_signal;
 
 /* Node virtual functions. */
@@ -140,7 +151,7 @@ typedef struct {
 /* Node base class. All the created nodes should have this type as the first
  * data member of the struct. The name is enough for obtaining its associated
  * metadata (see: umugu_node_info) and then the offsets to the interface. */
-typedef struct {
+typedef struct umugu_node {
     umugu_name name;
 } umugu_node;
 
@@ -212,58 +223,30 @@ typedef struct {
     int64_t size_bytes;
 } umugu_pipeline;
 
-/* Audio output abstraction. The goal is to separate the audio backend
- * implementations from the library code. The implementations should be
- * able to feed the backend with the signals resulting from pipeline
- * passes using this struct and umugu_produce_signal(num_frames). */
+/* Input and output abstraction.
+ * Communication layer between umugu and platform implementations. */
 typedef struct {
     /* The primary output of the library. Its contents (if any) are the next
      * samples to be played by the audio backend. This signal is the result
-     * of the last umugu_produce_signal call. */
-    umugu_signal output;
+     * of the last umugu_produce_signal call.
+     * WRITE: Umugu. */
+    umugu_signal out_audio_signal;
 
-    /* TODO: Rethink the open / running decision... this smells bad and
-     * I'm sure will cause bugs due to incoherent state between this
-     * values and the real backend stream state. I feel like I need some
-     * sort of comunication and control over the output stream but at
-     * the same time it seems to me that it would be better to delete
-     * the variables and forget about the stream state... if it happens
-     * to fail I would have ended aborting the execution anyway. */
-
-    /* TODO2: On second thought I think the best thing to do is to drop
-     * the audio backend support and let the user implement the signal
-     * playback (I will be the only user so nothing changes... maybe
-     * the folder where the implementation sources will be).
-     * Why am I writing this nonsense? I should go to bed. */
-
-    /* Indicates that the stream is configured, initialized and ready to start
-     * requesting and playing the obtained signal from the pipeline
-     * (or already doing so).
-     * In no case can the stream start playing if this variable is false. */
-    int32_t open;
-
-    /* Indicates that the stream is periodically requesting new audio fragments
-     * from the pipeline as it plays them.
-     * NOTE: If this variable is true, chances are that the pipeline is
-     * modifying its internal state (writes) from another thread, since
-     * the audio requests usually come from stream callbacks.
-     * It should not be a problem if the main thread only changes parameters
-     * on the nodes (typical real-time tweaking with controllers or UI)
-     * because nodes only read them during signal processing, and the variables
-     * where they write should be inaccessible (internal state) for the main
-     * thread and widgets / inputs. The only actions that require active
-     * synchronization are impot/export operations and context change, which
-     * there is no point in doing while there is a stream running anyway. */
-    int32_t running;
+    /* Audio backend state.
+     * WRITE: Audio backends. */
+    int32_t audio_backend_ready;
+    int32_t audio_backend_stream_running;
 
     /* Time gap (in seconds) between the stream callback call that
      * requests new signal data and the moment when the produced signal
-     * will output the DAC. */
+     * will output the DAC.
+     * WRITE: Audio backends. */
     double time_margin_sec;
 
-    /* Opaque ptr for storing the backend stream handles */
-    void *handle;
-} umugu_out_stream;
+    /* Opaque ptr for storing the backend handles.
+     * WRITE: Audio backends. */
+    void *backend_handle;
+} umugu_io;
 
 typedef struct umugu_ctx {
     /* TODO: Better to have an arena and 2 types of allocators:
@@ -277,10 +260,6 @@ typedef struct umugu_ctx {
         None of them sould have free, so remove it too. */
     void *(*alloc)(size_t bytes);
     void (*free)(void *ptr);
-    /* TODO: I think it was stupid to add this assert hook...
-       I don't think it's too bad to indlude <assert.h> and use it
-       in library code since it's only for debug builds.  */
-    void (*assert)(int cond);
     int (*log)(const char *fmt, ...);
 
     /* Audio pipeline. */
@@ -290,7 +269,8 @@ typedef struct umugu_ctx {
     umugu_node_info nodes_info[UMUGU_DEFAULT_NODE_INFO_CAPACITY];
     int32_t nodes_info_next;
 
-    umugu_out_stream audio_output;
+    /* Input / output abstraction layer. */
+    umugu_io io;
 } umugu_ctx;
 
 /* Internal initialization. This function should be called before any other. */
@@ -298,13 +278,10 @@ int umugu_init(void);
 /* Releases resources and closes streams. */
 int umugu_close(void);
 
-/* While the stream is running, the audio callback gets called periodically
- * from another thread and the whole audio pipeline is processed in order
- * to generate the output samples required by the audio backend. */
-int umugu_start_stream(void);
-int umugu_stop_stream(void);
-
-int umugu_produce_signal(int32_t frame_count, void *out_buffer);
+/* Updates the audio output signal.
+ * Populates the audio output signal with generated samples from the pipeline.
+ * The caller is expected to set the output signal configuration before. */
+int umugu_produce_signal(void);
 
 /* Export the current context's pipeline to binary data.
  * Return UMUGU_SUCCESS if saved successfuly or UMUGU_ERR_FILE if file open
@@ -342,6 +319,17 @@ const umugu_node_info *umugu_node_info_load(const umugu_name *name);
 /* Active context instance manipulation. */
 void umugu_set_context(umugu_ctx *new_ctx);
 umugu_ctx *umugu_get_context(void);
+
+/* Audio backend generic interface.
+ * This functions are not implemented by libumugu.a but provide a generic
+ * interface for backends. It is not strictly necessary for backend
+ * implementations to implement this functions, but generic demos will
+ * use them. */
+extern int umugu_audio_backend_init(void);
+extern int umugu_audio_backend_close(void);
+extern int umugu_audio_backend_play(int milliseconds);
+extern int umugu_audio_backend_start_stream(void);
+extern int umugu_audio_backend_stop_stream(void);
 
 #ifdef __cplusplus
 }

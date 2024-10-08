@@ -1,10 +1,10 @@
 #include "umugu.h"
-#include "umugu_internal.h"
 #include "nodes/builtin_nodes.h"
 
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
 #include <dlfcn.h>
 
 #define UMUGU_HEAD_CODE 0x00454549
@@ -111,7 +111,7 @@ umugu_node_info_load(const umugu_name *name)
     const umugu_node_info *bi_info = um__node_info_builtin_find(name);
     if (bi_info) {
         /* Add the node info to the current context. */
-        g_ctx->assert(g_ctx->nodes_info_next < UMUGU_DEFAULT_NODE_INFO_CAPACITY);
+        assert(g_ctx->nodes_info_next < UMUGU_DEFAULT_NODE_INFO_CAPACITY);
         umugu_node_info *info = &g_ctx->nodes_info[g_ctx->nodes_info_next++];
         memcpy(info, bi_info, sizeof(umugu_node_info));
         return info;
@@ -124,28 +124,21 @@ umugu_node_info_load(const umugu_name *name)
     }
 
     /* Node info not found. */
-    g_ctx->assert(ret == UMUGU_ERR_PLUG);
+    assert(ret == UMUGU_ERR_PLUG);
     g_ctx->log("Node type %s not found.\n", name->str);
     return NULL;
 }
 
-int umugu_produce_signal(int32_t frame_count, void *out_buffer)
+int umugu_produce_signal(void)
 {
-    umugu_pipeline *graph = &g_ctx->pipeline;
-    g_ctx->audio_output.output = (umugu_signal){
-        .frames = out_buffer,
-        .count = frame_count,
-        .rate = UMUGU_SAMPLE_RATE,
-        .type = UMUGU_SAMPLE_TYPE,
-        .channels = UMUGU_CHANNELS,
-        .capacity = frame_count};
-
-    umugu_node *it = graph->root;
+    umugu_node *it = g_ctx->pipeline.root;
     int ret = umugu_node_call(UMUGU_FN_GETSIGNAL, &it,
-        &(g_ctx->audio_output.output));
+        &(g_ctx->io.out_audio_signal));
+
     if (ret < UMUGU_SUCCESS) {
         g_ctx->log("Fatal error: umugu getsignal call could not be made.\n");
     }
+
     return ret;
 }
 
@@ -210,7 +203,7 @@ int umugu_load_pipeline_bin(const char *filename)
 
     /* TODO? Remove this?? */
     if (g_ctx->pipeline.root) {
-        g_ctx->assert(g_ctx->pipeline.size_bytes && "Zero size but non-NULL?");
+        assert(g_ctx->pipeline.size_bytes && "Zero size but non-NULL?");
         // hmmmm... free?
         g_ctx->free(g_ctx->pipeline.root);
     }
@@ -227,7 +220,7 @@ int umugu_load_pipeline_bin(const char *filename)
     fread(g_ctx->pipeline.root, header.size, 1, f);
     int32_t tail;
     fread(&tail, sizeof(tail), 1, f);
-    g_ctx->assert(tail == UMUGU_TAIL_CODE);
+    assert(tail == UMUGU_TAIL_CODE);
     fclose(f);
 
     /* Pipeline inits */
@@ -256,7 +249,7 @@ int umugu_plug(const umugu_name *name)
     char buf[1024];
     snprintf(buf, 1024, "lib%s.so", name->str);
     
-    g_ctx->assert(g_ctx->nodes_info_next < UMUGU_DEFAULT_NODE_INFO_CAPACITY);
+    assert(g_ctx->nodes_info_next < UMUGU_DEFAULT_NODE_INFO_CAPACITY);
     void *hnd = dlopen(buf, RTLD_NOW);
     if (!hnd) {
         g_ctx->log("Can't load plug: dlopen(%s) failed.", buf);
@@ -288,65 +281,10 @@ void umugu_unplug(const umugu_name *name)
 
 int umugu_init(void)
 {
-    if (g_ctx->audio_output.open) {
-        g_ctx->log(
-"Umugu has already been initialized and the audio backend is loaded.\n"
-"Ignoring this umugu_init() call...\n");
-        return UMUGU_NOOP;
-    }
-
-    um__node_info_builtin_load();
-
-    if (um__backend_init() == UMUGU_SUCCESS) {
-        g_ctx->audio_output.open = 1;
-    }
-
-    return UMUGU_SUCCESS;
-}
-
-int umugu_start_stream(void)
-{
-    if (g_ctx->audio_output.running) {
-        g_ctx->log(
-"The output stream is already running.\n"
-"Ignoring this umugu_start_stream() call.\n");
-        return UMUGU_NOOP;
-    }
-    
-    int ret = um__backend_start_stream();
-    if (ret == UMUGU_SUCCESS) {
-        g_ctx->audio_output.running = 1;
-        return UMUGU_SUCCESS;
-    }
-
-    g_ctx->log("Unable to start the stream. Error %d.\n", ret);
-    return UMUGU_ERR_STREAM;
-}
-
-int umugu_stop_stream(void)
-{
-    if (!g_ctx->audio_output.running) {
-        g_ctx->log(
-"Trying to stop a stopped stream.\n"
-"Ignoring this umugu_stop_stream() call.\n");
-        return UMUGU_NOOP;
-    }
-    
-    int ret = um__backend_stop_stream();
-    if (ret == UMUGU_SUCCESS) {
-        g_ctx->audio_output.running = 0;
-        return UMUGU_SUCCESS;
-    }
-
-    g_ctx->log("Unable to stop the stream. Error %d.\n", ret);
-    return UMUGU_ERR_STREAM;
+    return um__node_info_builtin_load();
 }
 
 int umugu_close(void)
 {
-    /* This will abort the output stream if not stopped.
-     * No point in checking. */
-    g_ctx->audio_output.running = 0;
-    g_ctx->audio_output.open = 0;
-    return um__backend_close();
+    return UMUGU_SUCCESS;
 }

@@ -30,7 +30,6 @@ target_include_directories(umugu PRIVATE
 
 target_sources(umugu PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/audio_playback.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/builtin_nodes.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/oscilloscope.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/waveform.c
@@ -38,8 +37,6 @@ target_sources(umugu PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/mixer.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/limiter.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/amplitude.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/portaudio_impl.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/stdout_impl.h
 )
 
 add_executable(umg-player)
@@ -59,7 +56,7 @@ target_include_directories(umg-player PRIVATE
 )
 
 target_sources(umg-player PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/main.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/umugutest_portaudio.c
 )
 
 target_link_libraries(umg-player PRIVATE
@@ -68,12 +65,35 @@ target_link_libraries(umg-player PRIVATE
 	pthread
 	rt
     umugu
+    jack
+    asound
+    portaudio
 )
 
-if (${UMUGU_BACKEND_PORTAUDIO})
-    target_link_libraries(umg-player PRIVATE
-        jack
-        asound
-        portaudio
-    )
-endif()
+add_executable(umg-pipe)
+target_compile_options(umg-pipe PRIVATE
+    -Wall
+    -Wextra
+    -Wpedantic
+)
+
+target_link_options(umg-pipe PRIVATE
+    "LINKER:-rpath,${CMAKE_CURRENT_SOURCE_DIR}/../assets/plugs"
+    -rdynamic
+)
+
+target_include_directories(umg-pipe PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_sources(umg-pipe PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/umugutest_stdout.c
+)
+
+target_link_libraries(umg-pipe PRIVATE
+	m
+    dl
+	pthread
+	rt
+    umugu
+)

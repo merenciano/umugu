@@ -51,6 +51,8 @@ target_sources(umg-editor PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu_editor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu_editor.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/PipelineBuilder.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Utilities.cpp
 )
 
 target_link_options(umg-editor PRIVATE 
@@ -72,11 +74,6 @@ target_link_libraries(umg-editor PRIVATE
     dl
     SDL2
     -l:libimgui.a
+    portaudio
+    jack
 )
-
-if (${UMUGU_BACKEND_PORTAUDIO})
-    target_link_libraries(umg-editor PRIVATE
-        portaudio
-        jack
-    )
-endif()

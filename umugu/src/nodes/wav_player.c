@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
 
 typedef struct {
     umugu_node node;
@@ -58,7 +59,7 @@ static inline int um__getsize(int type)
         case UMUGU_TYPE_INT16: return 2;
         case UMUGU_TYPE_INT32: return 4;
         case UMUGU_TYPE_FLOAT: return 4;
-        default: umugu_get_context()->assert(0); return 0;
+        default: assert(0); return 0;
     }
 }
 
@@ -68,7 +69,7 @@ static inline float um__inv_range(int type)
         case UMUGU_TYPE_INT16: return 1.0f / 32768.0f;
         case UMUGU_TYPE_INT32: return 1.0f / 2147483647.0f;
         case UMUGU_TYPE_FLOAT: return 1.0f;
-        default: umugu_get_context()->assert(0); return 0;
+        default: assert(0); return 0;
     }
 }
 
@@ -117,12 +118,11 @@ static inline int um__init(umugu_node **node, umugu_signal *_)
 /* TODO: Implement this node type mmapping the wav. */
 static inline int um__getsignal(umugu_node **node, umugu_signal *out)
 {
-    umugu_ctx *ctx = umugu_get_context();
     um__wavplayer *self = (void*)*node;
     *node = (void*)((char*)*node + sizeof(um__wavplayer));
 
     self->source.count = out->count;
-    ctx->assert(self->source.count < self->source.capacity);
+    assert(self->source.count <= self->source.capacity);
 
     fread(self->source.frames, self->source.count * self->source.channels *
         um__getsize(self->source.type), 1, (FILE*)self->file_handle);

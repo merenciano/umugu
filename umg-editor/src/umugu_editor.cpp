@@ -1,7 +1,11 @@
 #include "umugu_editor.h"
+#include "PipelineBuilder.h"
+#include "Utilities.h"
 
 #include "../../umugu/src/nodes/builtin_nodes.h" // TODO: Waveforms in public api
 #include <umugu/umugu.h>
+#define UMUGU_PORTAUDIO19_IMPL
+#include <umugu/backends/umugu_portaudio19.h>
 
 #include "imgui/backends/imgui_impl_opengl3.h"
 #include "imgui/backends/imgui_impl_sdl2.h"
@@ -29,6 +33,7 @@ struct Window {
 };
 
 Window window;
+umumk::PipelineBuilder Builder;
 
 [[maybe_unused]] const char* const SHAPE_NAMES[] = {
     "SINE",
@@ -55,60 +60,8 @@ static void DrawUnitUI(umugu_node** node)
 
     ImGui::PushID(self);
     ImGui::Separator();
-    ImGui::TextUnformatted(info->name.str);
-    const int var_count = info->var_count;
-    for (int i = 0; i < var_count; ++i) {
-        const umugu_var_info* var = &info->vars[i];
-        char* value = ((char*)self + var->offset_bytes);
-        int step = 1;
-        int fastep = 50;
-        switch (var->type) {
-        case UMUGU_TYPE_PLOTLINE: {
-            if (ImPlot::BeginPlot("PlotLine")) {
-                ImPlot::PushStyleColor(ImPlotCol_Line, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-                ImPlot::PlotLine(var->name.str, *(float**)value, var->count);
-                ImPlot::PopStyleColor();
-                ImPlot::EndPlot();
-            }
-            break;
-        }
 
-        case UMUGU_TYPE_FLOAT: {
-            ImGui::SliderScalarN(var->name.str, ImGuiDataType_Float, value, var->count, &var->misc.range.min, &var->misc.range.max, "%.2f");
-            break;
-        }
-
-        case UMUGU_TYPE_INT32: {
-            ImGui::InputScalarN(var->name.str, ImGuiDataType_S32, value, var->count, &step, &fastep, "%d");
-            break;
-        }
-
-        case UMUGU_TYPE_INT16: {
-            ImGui::InputScalarN(var->name.str, ImGuiDataType_S16, value, var->count, &step, &fastep, "%d");
-            break;
-        }
-
-        case UMUGU_TYPE_UINT8: {
-            ImGui::InputScalarN(var->name.str, ImGuiDataType_U8, value, var->count, &step, &fastep, "%u");
-            break;
-        }
-
-        case UMUGU_TYPE_BOOL: {
-            ImGui::Checkbox(var->name.str, (bool*)value);
-            break;
-        }
-
-        case UMUGU_TYPE_TEXT: {
-            ImGui::InputText(var->name.str, value, var->count);
-            break;
-        }
-
-        default: {
-            ImGui::Text("Type %d not implemented", var->type);
-            break;
-        }
-        }
-    }
+    umumk::DrawNodeWidgets(self);
 
     ImGui::PopID();
 }
@@ -117,7 +70,7 @@ static void GraphWindow()
 {
     umugu_node* it = umugu_get_context()->pipeline.root;
     ImGui::Begin("Graph");
-    ImGui::Text("Available time for the callback: %lf", umugu_get_context()->audio_output.time_margin_sec);
+    ImGui::Text("Available time for the callback: %lf", umugu_get_context()->io.time_margin_sec);
     DrawUnitUI(&it);
     ImGui::End();
 }
@@ -183,6 +136,12 @@ void Render()
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
 
+    ImGui::BeginMainMenuBar();
+
+    ImGui::EndMainMenuBar();
+
+    Builder.Draw();
+
     GraphWindow();
 
     static bool show_demo_window = false;
@@ -220,15 +179,23 @@ void Close()
     SDL_DestroyWindow((SDL_Window*)window.native_win);
     SDL_Quit();
 
+    umugu_audio_backend_stop_stream();
+    umugu_audio_backend_close();
     umugu_close();
 }
 
 void Init()
 {
+    umugu_ctx* ctx = umugu_get_context();
+    ctx->alloc = malloc;
+    ctx->free = free;
+    ctx->log = printf;
+
     umugu_init();
+    umugu_audio_backend_init();
     umugu_load_pipeline_bin("../assets/pipelines/plugtest.bin");
 
-    umugu_start_stream();
+    umugu_audio_backend_start_stream();
     InitUI();
 }
 } // namespace umugu_editor
