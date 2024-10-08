@@ -129,6 +129,26 @@ umugu_node_info_load(const umugu_name *name)
     return NULL;
 }
 
+int umugu_produce_signal(int32_t frame_count, void *out_buffer)
+{
+    umugu_pipeline *graph = &g_ctx->pipeline;
+    g_ctx->audio_output.output = (umugu_signal){
+        .frames = out_buffer,
+        .count = frame_count,
+        .rate = UMUGU_SAMPLE_RATE,
+        .type = UMUGU_SAMPLE_TYPE,
+        .channels = UMUGU_CHANNELS,
+        .capacity = frame_count};
+
+    umugu_node *it = graph->root;
+    int ret = umugu_node_call(UMUGU_FN_GETSIGNAL, &it,
+        &(g_ctx->audio_output.output));
+    if (ret < UMUGU_SUCCESS) {
+        g_ctx->log("Fatal error: umugu getsignal call could not be made.\n");
+    }
+    return ret;
+}
+
 void umugu_set_context(umugu_ctx *new_ctx)
 {
     g_ctx = new_ctx;
@@ -143,7 +163,8 @@ int umugu_save_pipeline_bin(const char *filename)
 {
     FILE *f = fopen(filename, "wb");
     if (!f) {
-        g_ctx->log("Could not open the file %s. Aborting pipeline save.", filename);
+        g_ctx->log(
+"Could not open the file %s. Aborting pipeline save.", filename);
         return UMUGU_ERR_FILE;
     }
 
@@ -167,7 +188,8 @@ int umugu_load_pipeline_bin(const char *filename)
 {
     FILE *f = fopen(filename, "rb");
     if (!f) {
-        g_ctx->log("Could not open the file %s. Aborting pipeline load.\n", filename);
+        g_ctx->log(
+"Could not open the file %s. Aborting pipeline load.\n", filename);
         return UMUGU_ERR_FILE;
     }
 
@@ -179,7 +201,8 @@ int umugu_load_pipeline_bin(const char *filename)
 
     fread(&header, sizeof(header), 1, f);
     if (header.head != UMUGU_HEAD_CODE) {
-        g_ctx->log("Binary file %s header code does not match.\n", filename);
+        g_ctx->log(
+"Binary file %s header code does not match.\n", filename);
         fclose(f);
         return UMUGU_ERR_FILE;
     }

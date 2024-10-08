@@ -4,5 +4,6 @@ assets/
 !assets/audio/pirri.wav
 bin/
 build/
+vscodebuild/
 umugu/lib/
 umg-editor/extern/lib/

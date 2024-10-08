@@ -16,7 +16,6 @@
     TODO(Err)
     TODO(qol)
     TODO:
-        - Implement umugu_produce_signal.
         - Make it work using int16 or even uint8, instead of float32. I want
           this to work on a ESP32.
         - Simple and performant hash for umugu_name to be used as a key in
@@ -305,7 +304,7 @@ int umugu_close(void);
 int umugu_start_stream(void);
 int umugu_stop_stream(void);
 
-int umugu_produce_signal(int32_t number_of_samples);
+int umugu_produce_signal(int32_t frame_count, void *out_buffer);
 
 /* Export the current context's pipeline to binary data.
  * Return UMUGU_SUCCESS if saved successfuly or UMUGU_ERR_FILE if file open
