@@ -1,10 +1,6 @@
-cmake_minimum_required(VERSION 3.13)
-
 set(CMAKE_DEBUG_POSTFIX _d)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED TRUE)
-
-project (UmuguLib VERSION 0.3.0)
 
 add_library(umugu STATIC)
 
@@ -39,61 +35,43 @@ target_sources(umugu PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/amplitude.c
 )
 
-add_executable(umg-player)
-target_compile_options(umg-player PRIVATE
+add_compile_options(
     -Wall
     -Wextra
     -Wpedantic
 )
 
-target_link_options(umg-player PRIVATE
+add_link_options(
     "LINKER:-rpath,${CMAKE_CURRENT_SOURCE_DIR}/../assets/plugs"
     -rdynamic
 )
 
-target_include_directories(umg-player PRIVATE
+include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-target_sources(umg-player PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/test/umugutest_portaudio.c
-)
-
-target_link_libraries(umg-player PRIVATE
+link_libraries(
 	m
     dl
 	pthread
 	rt
     umugu
+)
+
+add_executable(player-portaudio)
+
+target_sources(player-portaudio PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/umugutest_portaudio.c
+)
+
+target_link_libraries(player-portaudio PRIVATE
     jack
     asound
     portaudio
 )
 
-add_executable(umg-pipe)
-target_compile_options(umg-pipe PRIVATE
-    -Wall
-    -Wextra
-    -Wpedantic
-)
+add_executable(player-stdout)
 
-target_link_options(umg-pipe PRIVATE
-    "LINKER:-rpath,${CMAKE_CURRENT_SOURCE_DIR}/../assets/plugs"
-    -rdynamic
-)
-
-target_include_directories(umg-pipe PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
-
-target_sources(umg-pipe PRIVATE
+target_sources(player-stdout PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/test/umugutest_stdout.c
-)
-
-target_link_libraries(umg-pipe PRIVATE
-	m
-    dl
-	pthread
-	rt
-    umugu
 )

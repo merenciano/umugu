@@ -2,17 +2,6 @@
                                u   mu         gu
     "Venga, a ver si te buscas una musiquilla guapa, ¿no colega?" - El Pirri.
 
-    The audio pipeline handles signals with this config:
-      - Channels = 2
-      - Sample rate = 48000
-      - Data type = Float32
-
-    The audio sources that read files can open other configs, but the
-     signal gets converted to that config before leaving the source node.
-    The same happens for output. It can have other configs but all the pipeline
-     will be processed with the default signal config until the end, then
-     the signal will be converted to the desired output format.
-
     TODO(Err)
     TODO(qol)
     TODO:
