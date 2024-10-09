@@ -1,78 +1,70 @@
 #include "umugu.h"
-#include "nodes/builtin_nodes.h"
 
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include "builtin_nodes.h"
+
 #include <assert.h>
 #include <dlfcn.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #define UMUGU_HEAD_CODE 0x00454549
 #define UMUGU_TAIL_CODE 0x00555541
 
-#define UMUGU_GET_VERSION \
-    ((UMUGU_VERSION_MAJOR << 20) | \
-     (UMUGU_VERSION_MINOR << 10) | \
-      UMUGU_VERSION_PATCH)
-
+#define UMUGU_GET_VERSION                                                      \
+    ((UMUGU_VERSION_MAJOR << 20) | (UMUGU_VERSION_MINOR << 10) |               \
+     UMUGU_VERSION_PATCH)
 
 static umugu_ctx g_default_ctx; /* Relying on zero-init from static memory. */
 static umugu_ctx *g_ctx = &g_default_ctx;
 
 umugu_node_info g_builtin_nodes_info[UM__BUILTIN_NODES_COUNT];
 
-static inline int um__node_info_builtin_load(void)
-{
-    g_builtin_nodes_info[0] = (umugu_node_info) {
-        .name = {.str = "Oscilloscope"},
-        .size_bytes = um__oscope_size, 
-        .var_count = um__oscope_var_count,
-        .getfn = um__oscope_getfn, 
-        .vars = um__oscope_vars,
-        .plug_handle = NULL
-    };
+static inline int um__node_info_builtin_load(void) {
+    g_builtin_nodes_info[0] =
+        (umugu_node_info){.name = {.str = "Oscilloscope"},
+                          .size_bytes = um__oscope_size,
+                          .var_count = um__oscope_var_count,
+                          .getfn = um__oscope_getfn,
+                          .vars = um__oscope_vars,
+                          .plug_handle = NULL};
 
-    g_builtin_nodes_info[1] = (umugu_node_info) {
-        .name = {.str = "WavFilePlayer"},
-        .size_bytes = um__wavplayer_size,
-        .var_count = um__wavplayer_var_count,
-        .getfn = um__wavplayer_getfn,
-        .vars = um__wavplayer_vars,
-        .plug_handle = NULL
-    };
+    g_builtin_nodes_info[1] =
+        (umugu_node_info){.name = {.str = "WavFilePlayer"},
+                          .size_bytes = um__wavplayer_size,
+                          .var_count = um__wavplayer_var_count,
+                          .getfn = um__wavplayer_getfn,
+                          .vars = um__wavplayer_vars,
+                          .plug_handle = NULL};
 
-    g_builtin_nodes_info[2] = (umugu_node_info) {
-        .name = {.str = "Mixer"},
-        .size_bytes = um__mixer_size,
-        .var_count = um__mixer_var_count,
-        .getfn = um__mixer_getfn,
-        .vars = um__mixer_vars,
-        .plug_handle = NULL
-    };
+    g_builtin_nodes_info[2] =
+        (umugu_node_info){.name = {.str = "Mixer"},
+                          .size_bytes = um__mixer_size,
+                          .var_count = um__mixer_var_count,
+                          .getfn = um__mixer_getfn,
+                          .vars = um__mixer_vars,
+                          .plug_handle = NULL};
 
-    g_builtin_nodes_info[3] = (umugu_node_info) {
-        .name = {.str = "Amplitude"},
-        .size_bytes = um__amplitude_size,
-        .var_count = um__amplitude_var_count,
-        .getfn = um__amplitude_getfn,
-        .vars = um__amplitude_vars,
-        .plug_handle = NULL
-    };
+    g_builtin_nodes_info[3] =
+        (umugu_node_info){.name = {.str = "Amplitude"},
+                          .size_bytes = um__amplitude_size,
+                          .var_count = um__amplitude_var_count,
+                          .getfn = um__amplitude_getfn,
+                          .vars = um__amplitude_vars,
+                          .plug_handle = NULL};
 
-    g_builtin_nodes_info[4] = (umugu_node_info) {
-        .name = {.str = "Limiter"},
-        .size_bytes = um__limiter_size,
-        .var_count = um__limiter_var_count,
-        .getfn = um__limiter_getfn,
-        .vars = um__limiter_vars,
-        .plug_handle = NULL
-    };
+    g_builtin_nodes_info[4] =
+        (umugu_node_info){.name = {.str = "Limiter"},
+                          .size_bytes = um__limiter_size,
+                          .var_count = um__limiter_var_count,
+                          .getfn = um__limiter_getfn,
+                          .vars = um__limiter_vars,
+                          .plug_handle = NULL};
 
     return UMUGU_SUCCESS;
 }
 
-static inline int um__name_equals(const umugu_name *a, const umugu_name *b)
-{
+static inline int um__name_equals(const umugu_name *a, const umugu_name *b) {
     return !memcmp(a, b, UMUGU_NAME_LEN);
 }
 
@@ -87,8 +79,7 @@ um__node_info_builtin_find(const umugu_name *name) {
     return NULL;
 }
 
-const umugu_node_info * umugu_node_info_find(const umugu_name *name)
-{
+const umugu_node_info *umugu_node_info_find(const umugu_name *name) {
     for (int i = 0; i < g_ctx->nodes_info_next; ++i) {
         if (um__name_equals(&g_ctx->nodes_info[i].name, name)) {
             return g_ctx->nodes_info + i;
@@ -98,9 +89,7 @@ const umugu_node_info * umugu_node_info_find(const umugu_name *name)
     return NULL;
 }
 
-const umugu_node_info *
-umugu_node_info_load(const umugu_name *name)
-{
+const umugu_node_info *umugu_node_info_load(const umugu_name *name) {
     /* Check if the node info is already loaded. */
     const umugu_node_info *found = umugu_node_info_find(name);
     if (found) {
@@ -129,11 +118,10 @@ umugu_node_info_load(const umugu_name *name)
     return NULL;
 }
 
-int umugu_produce_signal(void)
-{
+int umugu_produce_signal(void) {
     umugu_node *it = g_ctx->pipeline.root;
-    int ret = umugu_node_call(UMUGU_FN_GETSIGNAL, &it,
-        &(g_ctx->io.out_audio_signal));
+    int ret =
+        umugu_node_call(UMUGU_FN_GETSIGNAL, &it, &(g_ctx->io.out_audio_signal));
 
     if (ret < UMUGU_SUCCESS) {
         g_ctx->log("Fatal error: umugu getsignal call could not be made.\n");
@@ -142,22 +130,15 @@ int umugu_produce_signal(void)
     return ret;
 }
 
-void umugu_set_context(umugu_ctx *new_ctx)
-{
-    g_ctx = new_ctx;
-}
+void umugu_set_context(umugu_ctx *new_ctx) { g_ctx = new_ctx; }
 
-umugu_ctx *umugu_get_context(void)
-{
-    return g_ctx;
-}
+umugu_ctx *umugu_get_context(void) { return g_ctx; }
 
-int umugu_save_pipeline_bin(const char *filename)
-{
+int umugu_save_pipeline_bin(const char *filename) {
     FILE *f = fopen(filename, "wb");
     if (!f) {
-        g_ctx->log(
-"Could not open the file %s. Aborting pipeline save.", filename);
+        g_ctx->log("Could not open the file %s. Aborting pipeline save.",
+                   filename);
         return UMUGU_ERR_FILE;
     }
 
@@ -165,9 +146,9 @@ int umugu_save_pipeline_bin(const char *filename)
         int32_t head;
         int32_t version;
         int64_t size;
-    } header = { .head = UMUGU_HEAD_CODE,
-                 .version = UMUGU_GET_VERSION,
-                 .size = g_ctx->pipeline.size_bytes };
+    } header = {.head = UMUGU_HEAD_CODE,
+                .version = UMUGU_GET_VERSION,
+                .size = g_ctx->pipeline.size_bytes};
     fwrite(&header, sizeof(header), 1, f);
     fwrite(g_ctx->pipeline.root, header.size, 1, f);
     int32_t tail = UMUGU_TAIL_CODE;
@@ -177,12 +158,11 @@ int umugu_save_pipeline_bin(const char *filename)
     return UMUGU_SUCCESS;
 }
 
-int umugu_load_pipeline_bin(const char *filename)
-{
+int umugu_load_pipeline_bin(const char *filename) {
     FILE *f = fopen(filename, "rb");
     if (!f) {
-        g_ctx->log(
-"Could not open the file %s. Aborting pipeline load.\n", filename);
+        g_ctx->log("Could not open the file %s. Aborting pipeline load.\n",
+                   filename);
         return UMUGU_ERR_FILE;
     }
 
@@ -194,8 +174,7 @@ int umugu_load_pipeline_bin(const char *filename)
 
     fread(&header, sizeof(header), 1, f);
     if (header.head != UMUGU_HEAD_CODE) {
-        g_ctx->log(
-"Binary file %s header code does not match.\n", filename);
+        g_ctx->log("Binary file %s header code does not match.\n", filename);
         fclose(f);
         return UMUGU_ERR_FILE;
     }
@@ -229,9 +208,8 @@ int umugu_load_pipeline_bin(const char *filename)
     return UMUGU_SUCCESS;
 }
 
-int umugu_node_call(umugu_fn fn, umugu_node **node, umugu_signal *out)
-{
-    const umugu_name *name = (umugu_name*)*node;
+int umugu_node_call(umugu_fn fn, umugu_node **node, umugu_signal *out) {
+    const umugu_name *name = (umugu_name *)*node;
     const umugu_node_info *info = umugu_node_info_find(name);
     if (!info) {
         info = umugu_node_info_load(name);
@@ -244,11 +222,10 @@ int umugu_node_call(umugu_fn fn, umugu_node **node, umugu_signal *out)
     return UMUGU_SUCCESS;
 }
 
-int umugu_plug(const umugu_name *name)
-{
+int umugu_plug(const umugu_name *name) {
     char buf[1024];
     snprintf(buf, 1024, "lib%s.so", name->str);
-    
+
     assert(g_ctx->nodes_info_next < UMUGU_DEFAULT_NODE_INFO_CAPACITY);
     void *hnd = dlopen(buf, RTLD_NOW);
     if (!hnd) {
@@ -258,33 +235,27 @@ int umugu_plug(const umugu_name *name)
 
     umugu_node_info *info = &g_ctx->nodes_info[g_ctx->nodes_info_next++];
     strncpy(info->name.str, name->str, UMUGU_NAME_LEN);
-    *(void**)&info->getfn = dlsym(hnd, "getfn");
-    info->size_bytes = *(size_t*)dlsym(hnd, "size");
-    info->vars = *(umugu_var_info**)dlsym(hnd, "vars");
-    info->var_count = *(int32_t*)dlsym(hnd, "var_count");
+    *(void **)&info->getfn = dlsym(hnd, "getfn");
+    info->size_bytes = *(size_t *)dlsym(hnd, "size");
+    info->vars = *(umugu_var_info **)dlsym(hnd, "vars");
+    info->var_count = *(int32_t *)dlsym(hnd, "var_count");
     info->plug_handle = hnd;
     return g_ctx->nodes_info_next - 1;
 }
 
-void umugu_unplug(const umugu_name *name)
-{
-    umugu_node_info *info = (void*)umugu_node_info_find(name);
+void umugu_unplug(const umugu_name *name) {
+    umugu_node_info *info = (void *)umugu_node_info_find(name);
     if (info && info->plug_handle) {
         dlclose(info->plug_handle);
         umugu_node_info *last = &g_ctx->nodes_info[--g_ctx->nodes_info_next];
         if (info != last) {
-            memcpy(info, &g_ctx->nodes_info[g_ctx->nodes_info_next], sizeof(*info));
+            memcpy(info, &g_ctx->nodes_info[g_ctx->nodes_info_next],
+                   sizeof(*info));
         }
         memset(last, 0, sizeof(*last));
     }
 }
 
-int umugu_init(void)
-{
-    return um__node_info_builtin_load();
-}
+int umugu_init(void) { return um__node_info_builtin_load(); }
 
-int umugu_close(void)
-{
-    return UMUGU_SUCCESS;
-}
+int umugu_close(void) { return UMUGU_SUCCESS; }

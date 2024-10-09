@@ -4,7 +4,7 @@ set(CMAKE_DEBUG_POSTFIX _d)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED TRUE)
 
-project (UmuguLib VERSION 0.2.0)
+project (UmuguLib VERSION 0.3.0)
 
 add_library(umugu STATIC)
 
@@ -30,7 +30,7 @@ target_include_directories(umugu PRIVATE
 
 target_sources(umugu PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/builtin_nodes.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/builtin_nodes.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/oscilloscope.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/waveform.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/wav_player.c
