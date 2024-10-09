@@ -1,10 +1,6 @@
-cmake_minimum_required(VERSION 3.13)
-
 set(CMAKE_DEBUG_POSTFIX _d)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED TRUE)
-
-project (UmuguLib VERSION 0.2.0)
 
 add_library(umugu STATIC)
 
@@ -30,39 +26,31 @@ target_include_directories(umugu PRIVATE
 
 target_sources(umugu PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/audio_playback.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/builtin_nodes.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/builtin_nodes.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/oscilloscope.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/waveform.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/wav_player.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/mixer.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/limiter.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/amplitude.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/portaudio_impl.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/stdout_impl.h
 )
 
-add_executable(umg-player)
-target_compile_options(umg-player PRIVATE
+add_compile_options(
     -Wall
     -Wextra
     -Wpedantic
 )
 
-target_link_options(umg-player PRIVATE
+add_link_options(
     "LINKER:-rpath,${CMAKE_CURRENT_SOURCE_DIR}/../assets/plugs"
     -rdynamic
 )
 
-target_include_directories(umg-player PRIVATE
+include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-target_sources(umg-player PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/main.c
-)
-
-target_link_libraries(umg-player PRIVATE
+link_libraries(
 	m
     dl
 	pthread
@@ -70,10 +58,20 @@ target_link_libraries(umg-player PRIVATE
     umugu
 )
 
-if (${UMUGU_BACKEND_PORTAUDIO})
-    target_link_libraries(umg-player PRIVATE
-        jack
-        asound
-        portaudio
-    )
-endif()
+add_executable(player-portaudio)
+
+target_sources(player-portaudio PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/umugutest_portaudio.c
+)
+
+target_link_libraries(player-portaudio PRIVATE
+    jack
+    asound
+    portaudio
+)
+
+add_executable(player-stdout)
+
+target_sources(player-stdout PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/umugutest_stdout.c
+)

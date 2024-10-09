@@ -14,40 +14,34 @@ const int32_t um__oscope_size = (int32_t)sizeof(um__oscope);
 const int32_t um__oscope_var_count = 2;
 
 const umugu_var_info um__oscope_vars[] = {
-    {
-        .name = {.str = "Frequency"},
-        .offset_bytes = offsetof(um__oscope, freq),
-        .type = UMUGU_TYPE_INT32,
-        .count = 1,
-        .misc.range.min = 1,
-        .misc.range.max = 8372
-    },
-    {
-        .name = {.str = "Waveform"},
-        .offset_bytes = offsetof(um__oscope, waveform),
-        .type = UMUGU_TYPE_INT32,
-        .count = 1,
-        .misc.range.min = 0,
-        .misc.range.max = UM__WAVEFORM_COUNT 
-    }
-};
+    {.name = {.str = "Frequency"},
+     .offset_bytes = offsetof(um__oscope, freq),
+     .type = UMUGU_TYPE_INT32,
+     .count = 1,
+     .misc.range.min = 1,
+     .misc.range.max = 8372},
+    {.name = {.str = "Waveform"},
+     .offset_bytes = offsetof(um__oscope, waveform),
+     .type = UMUGU_TYPE_INT32,
+     .count = 1,
+     .misc.range.min = 0,
+     .misc.range.max = UM__WAVEFORM_COUNT}};
 
-static inline int um__init(umugu_node **node, umugu_signal *_)
-{
+static inline int um__init(umugu_node **node, umugu_signal *_) {
     (void)_;
     umugu_ctx *ctx = umugu_get_context();
-    um__oscope *self = (void*)*node;
-    *node = (void*)((char*)*node + sizeof(um__oscope));
+    um__oscope *self = (void *)*node;
+    *node = (void *)((char *)*node + sizeof(um__oscope));
     self->sample_capacity = UMUGU_DEFAULT_SAMPLE_CAPACITY;
-    self->audio_source = ctx->alloc(self->sample_capacity * sizeof(umugu_frame));
+    self->audio_source =
+        ctx->alloc(self->sample_capacity * sizeof(umugu_frame));
     return UMUGU_SUCCESS;
 }
 
-static inline int um__getsignal(umugu_node **node, umugu_signal *out)
-{
+static inline int um__getsignal(umugu_node **node, umugu_signal *out) {
     umugu_ctx *ctx = umugu_get_context();
-    um__oscope *self = (void*)*node;
-    *node = (void*)((char*)*node + sizeof(um__oscope));
+    um__oscope *self = (void *)*node;
+    *node = (void *)((char *)*node + sizeof(um__oscope));
     const int count = out->count;
     if (count > self->sample_capacity) {
         self->sample_capacity *= 2;
@@ -56,11 +50,12 @@ static inline int um__getsignal(umugu_node **node, umugu_signal *out)
         }
 
         ctx->free(self->audio_source);
-        self->audio_source = ctx->alloc(self->sample_capacity * sizeof(umugu_frame));
+        self->audio_source =
+            ctx->alloc(self->sample_capacity * sizeof(umugu_frame));
         if (!self->audio_source) {
             ctx->log("Error (oscilloscope): BadAlloc.\n");
             self->sample_capacity = 0;
-            self->audio_source = NULL; 
+            self->audio_source = NULL;
             return UMUGU_ERR_MEM;
         }
     }
@@ -78,11 +73,13 @@ static inline int um__getsignal(umugu_node **node, umugu_signal *out)
     return UMUGU_SUCCESS;
 }
 
-umugu_node_fn um__oscope_getfn(umugu_fn fn)
-{
+umugu_node_fn um__oscope_getfn(umugu_fn fn) {
     switch (fn) {
-        case UMUGU_FN_INIT: return um__init;
-        case UMUGU_FN_GETSIGNAL: return um__getsignal;
-        default: return NULL;
+    case UMUGU_FN_INIT:
+        return um__init;
+    case UMUGU_FN_GETSIGNAL:
+        return um__getsignal;
+    default:
+        return NULL;
     }
 }

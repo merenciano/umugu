@@ -1,0 +1,21 @@
+
+BasedOnStyle: LLVM
+Language: Cpp
+ColumnLimit: 100
+MaxEmptyLinesToKeep: 1
+InsertNewlineAtEOF: true
+
+IncludeBlocks: Regroup
+IncludeCategories:
+# Internal deps
+  - Regex: '<umugu/.*'
+    Priority: 2
+# External deps
+  - Regex: '<.*/.*'
+    Priority: 3
+# System / libstd
+  - Regex: '<[[:alnum:].]+>'
+    Priority: 4
+# Internal headers
+  - Regex: '^".*'
+    Priority: 1
