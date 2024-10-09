@@ -114,7 +114,7 @@ const umugu_node_info *umugu_node_info_load(const umugu_name *name) {
 
     /* Node info not found. */
     assert(ret == UMUGU_ERR_PLUG);
-    g_ctx->log("Node type %s not found.\n", name->str);
+    g_ctx->io.log("Node type %s not found.\n", name->str);
     return NULL;
 }
 
@@ -124,7 +124,7 @@ int umugu_produce_signal(void) {
         umugu_node_call(UMUGU_FN_GETSIGNAL, &it, &(g_ctx->io.out_audio_signal));
 
     if (ret < UMUGU_SUCCESS) {
-        g_ctx->log("Fatal error: umugu getsignal call could not be made.\n");
+        g_ctx->io.log("Fatal error: umugu getsignal call could not be made.\n");
     }
 
     return ret;
@@ -137,8 +137,8 @@ umugu_ctx *umugu_get_context(void) { return g_ctx; }
 int umugu_save_pipeline_bin(const char *filename) {
     FILE *f = fopen(filename, "wb");
     if (!f) {
-        g_ctx->log("Could not open the file %s. Aborting pipeline save.",
-                   filename);
+        g_ctx->io.log("Could not open the file %s. Aborting pipeline save.",
+                      filename);
         return UMUGU_ERR_FILE;
     }
 
@@ -161,8 +161,8 @@ int umugu_save_pipeline_bin(const char *filename) {
 int umugu_load_pipeline_bin(const char *filename) {
     FILE *f = fopen(filename, "rb");
     if (!f) {
-        g_ctx->log("Could not open the file %s. Aborting pipeline load.\n",
-                   filename);
+        g_ctx->io.log("Could not open the file %s. Aborting pipeline load.\n",
+                      filename);
         return UMUGU_ERR_FILE;
     }
 
@@ -174,7 +174,7 @@ int umugu_load_pipeline_bin(const char *filename) {
 
     fread(&header, sizeof(header), 1, f);
     if (header.head != UMUGU_HEAD_CODE) {
-        g_ctx->log("Binary file %s header code does not match.\n", filename);
+        g_ctx->io.log("Binary file %s header code does not match.\n", filename);
         fclose(f);
         return UMUGU_ERR_FILE;
     }
@@ -191,7 +191,7 @@ int umugu_load_pipeline_bin(const char *filename) {
     g_ctx->pipeline.root = g_ctx->alloc(header.size);
 
     if (!g_ctx->pipeline.root) {
-        g_ctx->log("Allocation failed. Aborting pipeline load.\n");
+        g_ctx->io.log("Allocation failed. Aborting pipeline load.\n");
         fclose(f);
         return UMUGU_ERR_MEM;
     }
@@ -214,7 +214,7 @@ int umugu_node_call(umugu_fn fn, umugu_node **node, umugu_signal *out) {
     if (!info) {
         info = umugu_node_info_load(name);
         if (!info) {
-            g_ctx->log("Node type %s not found.\n", name->str);
+            g_ctx->io.log("Node type %s not found.\n", name->str);
             return UMUGU_ERR;
         }
     }
@@ -229,7 +229,7 @@ int umugu_plug(const umugu_name *name) {
     assert(g_ctx->nodes_info_next < UMUGU_DEFAULT_NODE_INFO_CAPACITY);
     void *hnd = dlopen(buf, RTLD_NOW);
     if (!hnd) {
-        g_ctx->log("Can't load plug: dlopen(%s) failed.", buf);
+        g_ctx->io.log("Can't load plug: dlopen(%s) failed.", buf);
         return UMUGU_ERR_PLUG;
     }
 

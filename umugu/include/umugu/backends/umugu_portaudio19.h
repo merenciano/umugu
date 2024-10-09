@@ -28,12 +28,12 @@ static PaError um__pa_err;
 
 static inline void um__pa_terminate(void) {
     umugu_ctx *ctx = umugu_get_context();
-    ctx->log("Error PortAudio: %s\n", Pa_GetErrorText(um__pa_err));
+    ctx->io.log("Error PortAudio: %s\n", Pa_GetErrorText(um__pa_err));
     Pa_Terminate();
-    ctx->log("An error occurred while using the portaudio stream.\n"
-             "\tError number: %d.\n"
-             "\tError message: %s.",
-             um__pa_err, Pa_GetErrorText(um__pa_err));
+    ctx->io.log("An error occurred while using the portaudio stream.\n"
+                "\tError number: %d.\n"
+                "\tError message: %s.",
+                um__pa_err, Pa_GetErrorText(um__pa_err));
 }
 
 static inline int um__pa_callback(const void *in_buffer, void *out_buffer,
@@ -46,15 +46,15 @@ static inline int um__pa_callback(const void *in_buffer, void *out_buffer,
         timeinfo->outputBufferDacTime - timeinfo->currentTime;
 
     if (flags & paOutputUnderflow) {
-        ctx->log("PortAudio callback output underflow.\n");
+        ctx->io.log("PortAudio callback output underflow.\n");
     }
 
     if (flags & paOutputOverflow) {
-        ctx->log("PortAudio callback output overflow.\n");
+        ctx->io.log("PortAudio callback output overflow.\n");
     }
 
     if (flags & paPrimingOutput) {
-        ctx->log("PortAudio callback priming output.\n");
+        ctx->io.log("PortAudio callback priming output.\n");
     }
 
     ctx->io.out_audio_signal.frames = (umugu_frame *)out_buffer;
@@ -67,15 +67,15 @@ static inline int um__pa_callback(const void *in_buffer, void *out_buffer,
     umugu_produce_signal();
 
     if (!ctx->io.audio_backend_ready) {
-        ctx->log("Umugu's context audio output has closed suddenly!\n"
-                 "Aborting the current PortAudio stream.\n");
+        ctx->io.log("Umugu's context audio output has closed suddenly!\n"
+                    "Aborting the current PortAudio stream.\n");
         ctx->io.audio_backend_stream_running = 0;
         return paAbort;
     }
 
     if (!ctx->io.audio_backend_stream_running) {
-        ctx->log("Umugu's context audio output has stopped running!\n"
-                 "Setting the current PortAudio stream as completed.\n");
+        ctx->io.log("Umugu's context audio output has stopped running!\n"
+                    "Setting the current PortAudio stream as completed.\n");
         return paComplete;
     }
 
@@ -85,15 +85,15 @@ static inline int um__pa_callback(const void *in_buffer, void *out_buffer,
 int umugu_audio_backend_start_stream(void) {
     umugu_ctx *ctx = umugu_get_context();
     if (ctx->io.audio_backend_stream_running) {
-        ctx->log("The output stream is already running.\n"
-                 "Ignoring this umugu_start_stream() call.\n");
+        ctx->io.log("The output stream is already running.\n"
+                    "Ignoring this umugu_start_stream() call.\n");
         return UMUGU_NOOP;
     }
 
     um__pa_err = Pa_StartStream(um__pa_stream);
     if (um__pa_err != paNoError) {
         um__pa_terminate();
-        ctx->log("Error PortAudio: Unable to start the stream.\n");
+        ctx->io.log("Error PortAudio: Unable to start the stream.\n");
         return UMUGU_ERR_STREAM;
     }
 
@@ -104,15 +104,15 @@ int umugu_audio_backend_start_stream(void) {
 int umugu_audio_backend_stop_stream(void) {
     umugu_ctx *ctx = umugu_get_context();
     if (!ctx->io.audio_backend_stream_running) {
-        ctx->log("Trying to stop a stopped stream.\n"
-                 "Ignoring this umugu_stop_stream() call.\n");
+        ctx->io.log("Trying to stop a stopped stream.\n"
+                    "Ignoring this umugu_stop_stream() call.\n");
         return UMUGU_NOOP;
     }
 
     um__pa_err = Pa_StopStream(um__pa_stream);
     if (um__pa_err != paNoError) {
         um__pa_terminate();
-        ctx->log("Error PortAudio: Unable to stop the stream.\n");
+        ctx->io.log("Error PortAudio: Unable to stop the stream.\n");
         return UMUGU_ERR_STREAM;
     }
 
@@ -138,9 +138,10 @@ static inline int um__pa_sample_fmt(int umugu_type) {
 int umugu_audio_backend_init(void) {
     umugu_ctx *ctx = umugu_get_context();
     if (ctx->io.audio_backend_ready) {
-        ctx->log("Umugu has already been initialized and the audio backend is "
-                 "loaded.\n"
-                 "Ignoring this umugu_init() call...\n");
+        ctx->io.log(
+            "Umugu has already been initialized and the audio backend is "
+            "loaded.\n"
+            "Ignoring this umugu_init() call...\n");
         return UMUGU_NOOP;
     }
 
@@ -158,7 +159,7 @@ int umugu_audio_backend_init(void) {
 
     int fmt = um__pa_sample_fmt(UMUGU_SAMPLE_TYPE);
     if (fmt == UMUGU_ERR_AUDIO_BACKEND) {
-        ctx->log(
+        ctx->io.log(
             "Error initializing the audio backend (PortAudio): Conversion from "
             "umugu type %d to PortAudio sample format not implemented yet, "
             "please add the corresponding switch case.\n"

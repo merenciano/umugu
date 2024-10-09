@@ -92,7 +92,7 @@ UmuguMaker::UmuguMaker() {
   umugu_ctx *pCtx = umugu_get_context();
   pCtx->alloc = malloc;
   pCtx->free = free;
-  pCtx->log = printf;
+  pCtx->io.log = printf;
 
   umugu_init();
   umugu_audio_backend_init();

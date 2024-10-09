@@ -215,6 +215,8 @@ typedef struct {
 /* Input and output abstraction.
  * Communication layer between umugu and platform implementations. */
 typedef struct {
+    int (*log)(const char *fmt, ...);
+
     /* The primary output of the library. Its contents (if any) are the next
      * samples to be played by the audio backend. This signal is the result
      * of the last umugu_produce_signal call.
@@ -249,7 +251,6 @@ typedef struct umugu_ctx {
         None of them sould have free, so remove it too. */
     void *(*alloc)(size_t bytes);
     void (*free)(void *ptr);
-    int (*log)(const char *fmt, ...);
 
     /* Audio pipeline. */
     umugu_pipeline pipeline;

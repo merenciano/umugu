@@ -53,7 +53,7 @@ static inline int um__getsignal(umugu_node **node, umugu_signal *out) {
         self->audio_source =
             ctx->alloc(self->sample_capacity * sizeof(umugu_frame));
         if (!self->audio_source) {
-            ctx->log("Error (oscilloscope): BadAlloc.\n");
+            ctx->io.log("Error (oscilloscope): BadAlloc.\n");
             self->sample_capacity = 0;
             self->audio_source = NULL;
             return UMUGU_ERR_MEM;

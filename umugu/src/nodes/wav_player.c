@@ -80,7 +80,7 @@ static inline int um__init(umugu_node **node, umugu_signal *_) {
 
     self->file_handle = fopen(self->filename, "rb");
     if (!self->file_handle) {
-        ctx->log("Couldn't open %s\n", self->filename);
+        ctx->io.log("Couldn't open %s\n", self->filename);
         /* TODO(qol): dummy wav file as a backup */
         return UMUGU_ERR_FILE;
     }
