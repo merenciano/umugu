@@ -33,6 +33,8 @@ target_sources(umugu PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/mixer.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/limiter.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/amplitude.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/tube_amp.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/peakeq_filter.c
 )
 
 add_compile_options(
