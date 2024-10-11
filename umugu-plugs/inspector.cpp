@@ -1,5 +1,7 @@
 #include <umugu/umugu.h>
 
+#include <string.h>
+
 struct Inspector {
   umugu_node Node;
   float *OutValues;
@@ -57,6 +59,7 @@ static int Init(umugu_node **apNode, umugu_signal *_) {
   pSelf->Pause = false;
   pSelf->Values = (float *)(*umugu_get_context()->alloc)(pSelf->Size * 2 * sizeof(float));
   pSelf->OutValues = pSelf->Values;
+  memset(pSelf->Values, 0, pSelf->Size * 2 * sizeof(float));
   return UMUGU_SUCCESS;
 }
 

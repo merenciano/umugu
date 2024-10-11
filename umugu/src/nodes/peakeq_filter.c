@@ -1,5 +1,7 @@
 #include "builtin_nodes.h"
 
+#include <math.h>
+
 /* Peak equalizer filter */
 typedef struct {
     umugu_node node;
@@ -38,7 +40,7 @@ static inline int um__init(umugu_node **node, umugu_signal *_) {
     *node = (void *)((char *)*node + sizeof(um__peakeq));
     umugu_node_call(UMUGU_FN_INIT, node, _);
 
-    self->value = 6.2831855f / min(1.92e+05f, max(1.0f, UMUGU_SAMPLE_RATE));
+    self->value = 6.2831855f / fmin(1.92e+05f, fmax(1.0f, UMUGU_SAMPLE_RATE));
 
     return UMUGU_SUCCESS;
 }
@@ -50,9 +52,9 @@ static inline int um__getsignal(umugu_node **node, umugu_signal *out) {
     umugu_node_call(UMUGU_FN_GETSIGNAL, node, out);
     const int count = out->count;
 
-    float slow0 = self->value * maxf(0.0f, self->gain);
+    float slow0 = self->value * fmax(0.0f, self->gain);
     float slow1 = sinf(slow0);
-    float slow2 = maxf(0.001f, self->freq);
+    float slow2 = fmax(0.001f, self->freq);
     float slow3 = powf(1e+01f, 0.025f * self->center);
     float slow4 = 0.5f * (slow1 / (slow2 * slow3));
     float slow5 = 1.0f / (slow4 + 1.0f);

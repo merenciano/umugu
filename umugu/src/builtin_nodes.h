@@ -33,7 +33,13 @@ extern const int32_t um__mixer_var_count;
 extern const umugu_var_info um__mixer_vars[];
 extern umugu_node_fn um__mixer_getfn(umugu_fn fn);
 
-enum { UM__BUILTIN_NODES_COUNT = 5 };
+/* Butterworth filter - umugu/src/nodes/butterworth.c */
+extern const int32_t um__butterworth_size;
+extern const int32_t um__butterworth_var_count;
+extern const umugu_var_info um__butterworth_vars[];
+extern umugu_node_fn um__butterworth_getfn(umugu_fn fn);
+
+enum { UM__BUILTIN_NODES_COUNT = 6 };
 extern umugu_node_info g_builtin_nodes_info[UM__BUILTIN_NODES_COUNT];
 
 /* Waveform helpers - umugu/src/nodes/waveform.c */

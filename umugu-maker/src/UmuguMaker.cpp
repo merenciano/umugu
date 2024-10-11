@@ -28,6 +28,27 @@ namespace umumk {
 
 void UmuguMaker::MainMenu() {
   ImGui::BeginMainMenuBar();
+  // PIPELINE
+  if (ImGui::BeginMenu("Pipeline")) {
+    static char OpenBuf[1024] = "../assets/pipelines/";
+    ImGui::InputText("Pipeline filename", OpenBuf, 1024);
+    if (ImGui::MenuItem("Open pipeline")) {
+      umugu_load_pipeline_bin(OpenBuf);
+    }
+    if (ImGui::MenuItem("Start stream")) {
+      if (umugu_audio_backend_start_stream() < UMUGU_SUCCESS) {
+        printf("Error starting stream.\n");
+      }
+    }
+    if (ImGui::MenuItem("Stop stream")) {
+      if (umugu_audio_backend_stop_stream() < UMUGU_SUCCESS) {
+        printf("Error stopping stream.\n");
+      }
+    }
+    ImGui::EndMenu();
+  }
+
+  // TOOLS
   if (ImGui::BeginMenu("Tools")) {
     if (ImGui::MenuItem("Pipeline inspector", "", mShowPipelineWindow, true)) {
       mShowPipelineWindow = !mShowPipelineWindow;
@@ -37,6 +58,8 @@ void UmuguMaker::MainMenu() {
     }
     ImGui::EndMenu();
   }
+
+  // DEBUG
   if (ImGui::BeginMenu("Debug")) {
     if (ImGui::MenuItem("Show metrics", "", mShowMetricsWindow, true)) {
       mShowMetricsWindow = !mShowMetricsWindow;
@@ -96,9 +119,18 @@ UmuguMaker::UmuguMaker() {
 
   umugu_init();
   umugu_audio_backend_init();
-  umugu_load_pipeline_bin("../assets/pipelines/builder.bin");
 
-  umugu_audio_backend_start_stream();
+  int Count;
+  auto Nodes = umugu_get_builtin_nodes(&Count);
+  for (int i = 0; i < Count; ++i) {
+    umugu_node_info_load(&Nodes[i].name);
+  }
+
+  umugu_name PlugNames[] = {{"Inspector"}};
+  for (size_t i = 0; i < sizeof(PlugNames) / sizeof(PlugNames[0]); ++i) {
+    umugu_plug(PlugNames + i);
+  }
+
   OpenWindow();
 }
 

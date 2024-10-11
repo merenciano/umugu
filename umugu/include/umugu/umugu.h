@@ -310,6 +310,8 @@ const umugu_node_info *umugu_node_info_load(const umugu_name *name);
 void umugu_set_context(umugu_ctx *new_ctx);
 umugu_ctx *umugu_get_context(void);
 
+const umugu_node_info *umugu_get_builtin_nodes(int *out_count);
+
 /* Audio backend generic interface.
  * This functions are not implemented by libumugu.a but provide a generic
  * interface for backends. It is not strictly necessary for backend

@@ -61,6 +61,14 @@ static inline int um__node_info_builtin_load(void) {
                           .vars = um__limiter_vars,
                           .plug_handle = NULL};
 
+    g_builtin_nodes_info[5] =
+        (umugu_node_info){.name = {.str = "ButterworthFilter"},
+                          .size_bytes = um__butterworth_size,
+                          .var_count = um__butterworth_var_count,
+                          .getfn = um__butterworth_getfn,
+                          .vars = um__butterworth_vars,
+                          .plug_handle = NULL};
+
     return UMUGU_SUCCESS;
 }
 
@@ -133,6 +141,14 @@ int umugu_produce_signal(void) {
 void umugu_set_context(umugu_ctx *new_ctx) { g_ctx = new_ctx; }
 
 umugu_ctx *umugu_get_context(void) { return g_ctx; }
+
+const umugu_node_info *umugu_get_builtin_nodes(int *out_count)
+{
+    if (out_count) {
+        *out_count = UM__BUILTIN_NODES_COUNT;
+    }
+    return g_builtin_nodes_info;
+}
 
 int umugu_save_pipeline_bin(const char *filename) {
     FILE *f = fopen(filename, "wb");
