@@ -13,7 +13,9 @@ void PipelineInspector::Show() {
   umugu_node *It = umugu_get_context()->pipeline.root;
   ImGui::Begin("Pipeline graph");
   ImGui::Text("Available time for the callback: %lf", umugu_get_context()->io.time_margin_sec);
-  NodeWidgets(&It);
+  if (umugu_get_context()->pipeline.size_bytes) {
+    NodeWidgets(&It);
+  }
   ImGui::End();
 }
 

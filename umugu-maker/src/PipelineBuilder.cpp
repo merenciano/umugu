@@ -26,6 +26,12 @@ void PipelineBuilder::Show() {
   };
 
   ImGui::Begin("Pipeline builder");
+  static umugu_name NodeName;
+  if (ImGui::Button("Load info")) {
+    umugu_node_info_load(&NodeName);
+  }
+  ImGui::SameLine();
+  ImGui::InputText("Node name", NodeName.str, UMUGU_NAME_LEN);
 
   for (auto It = mNodes.begin(); It != mNodes.end(); ++It) {
     ImGui::PushID(*It);

@@ -64,6 +64,7 @@ static inline int um__pa_callback(const void *in_buffer, void *out_buffer,
     ctx->io.out_audio_signal.channels = UMUGU_CHANNELS;
     ctx->io.out_audio_signal.capacity = frame_count;
 
+    umugu_read_inputs();
     umugu_produce_signal();
 
     if (!ctx->io.audio_backend_ready) {

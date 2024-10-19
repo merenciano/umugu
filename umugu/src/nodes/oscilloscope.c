@@ -1,6 +1,8 @@
 #include "builtin_nodes.h"
 #include "umugu.h"
 
+#include <string.h>
+
 typedef struct {
     umugu_node node;
     int32_t phase;
@@ -43,6 +45,12 @@ static inline int um__getsignal(umugu_node **node, umugu_signal *out) {
     um__oscope *self = (void *)*node;
     *node = (void *)((char *)*node + sizeof(um__oscope));
     const int count = out->count;
+
+    if (!self->freq) {
+        memset(out->frames, 0, count * sizeof(umugu_frame));
+        return UMUGU_SUCCESS;
+    }
+
     if (count > self->sample_capacity) {
         self->sample_capacity *= 2;
         if (self->sample_capacity < 256) {
@@ -62,14 +70,14 @@ static inline int um__getsignal(umugu_node **node, umugu_signal *out) {
 
     for (int i = 0; i < count; i++) {
         float sample = um__waveform_lut[self->waveform][self->phase];
-        self->audio_source[i].left = sample;
-        self->audio_source[i].right = sample;
+        out->frames[i].left = sample;
+        out->frames[i].right = sample;
         self->phase += self->freq;
         if (self->phase >= UMUGU_SAMPLE_RATE) {
             self->phase -= UMUGU_SAMPLE_RATE;
         }
     }
-    out->frames = self->audio_source;
+    //out->frames = self->audio_source;
     return UMUGU_SUCCESS;
 }
 

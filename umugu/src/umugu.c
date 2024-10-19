@@ -15,6 +15,9 @@
     ((UMUGU_VERSION_MAJOR << 20) | (UMUGU_VERSION_MINOR << 10) |               \
      UMUGU_VERSION_PATCH)
 
+#define UM_PTR(PTR, OFFSET_BYTES)                                              \
+    ((void*)((char*)((void*)(PTR)) + (OFFSET_BYTES)))
+
 static umugu_ctx g_default_ctx; /* Relying on zero-init from static memory. */
 static umugu_ctx *g_ctx = &g_default_ctx;
 
@@ -118,7 +121,63 @@ const umugu_node_info *umugu_node_info_load(const umugu_name *name) {
     return NULL;
 }
 
+
+const umugu_var_info *umugu_var_info_get(umugu_name node, int var_idx)
+{
+    assert(var_idx >= 0);
+    assert(var_idx < 128 && "Delete this assert if var_idx is correct.");
+    const umugu_node_info *info = umugu_node_info_find(&node);
+    if (!info) {
+        return NULL;
+    }
+
+    return &info->vars[var_idx];
+}
+
+int umugu_read_inputs(void) {
+    typedef const umugu_var_info* var_p;
+    umugu_input_state *in = &g_ctx->io.in;
+    const uint64_t in_dirty = in->dirty_keys;
+
+    if (!in->dirty_keys) {
+        return UMUGU_NOOP;
+    }
+
+    for (int i = 0; i < UMUGU_MAX_KEYS; ++i) {
+        if (in_dirty & (1UL << i)) {
+            umugu_node *node = UM_PTR(g_ctx->pipeline.root,
+                                      in->keys[i].node_pipeline_offset);
+            var_p var = umugu_var_info_get(node->name, in->keys[i].var_idx);
+            void *value = UM_PTR(node, var->offset_bytes);
+            switch(var->type) {
+            case UMUGU_TYPE_BOOL:
+            case UMUGU_TYPE_INT32:
+                *(int32_t*)value = in->keys[i].value.i;
+                break;
+            case UMUGU_TYPE_INT16:
+                *(int16_t*)value = in->keys[i].value.i;
+                break;
+            case UMUGU_TYPE_UINT8:
+                *(uint8_t*)value = in->keys[i].value.u;
+                break;
+            case UMUGU_TYPE_FLOAT:
+                *(float*)value= in->keys[i].value.f;
+                break;
+
+            default: break;
+            }
+        }
+    }
+
+    g_ctx->io.in.dirty_keys = 0;
+    return UMUGU_SUCCESS;
+}
+
 int umugu_produce_signal(void) {
+    if (!g_ctx->pipeline.size_bytes) {
+        return UMUGU_NOOP;
+    }
+
     umugu_node *it = g_ctx->pipeline.root;
     int ret =
         umugu_node_call(UMUGU_FN_GETSIGNAL, &it, &(g_ctx->io.out_audio_signal));

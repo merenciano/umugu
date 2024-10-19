@@ -27,3 +27,26 @@ target_include_directories(Inspector PRIVATE
 target_sources(Inspector PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/inspector.cpp
 )
+
+add_library(Acid SHARED)
+
+set_target_properties(Acid PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../assets/plugs)
+set_target_properties(Acid PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../assets/plugs)
+set_target_properties(Acid PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../assets/plugs)
+
+target_compile_options(Acid PRIVATE
+    -Wall
+    -Wextra
+    -Wpedantic
+    -fPIC
+    -fno-rtti
+    -fno-exceptions
+)
+
+target_include_directories(Acid PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../umugu/include
+)
+
+target_sources(Acid PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/acid.cpp
+)

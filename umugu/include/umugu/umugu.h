@@ -4,6 +4,8 @@
 
     TODO(Err)
     TODO(qol)
+    TODO(Input):
+        - Support different variable types and arrays (count).
     TODO:
         - Make it work using int16 or even uint8, instead of float32. I want
           this to work on a ESP32.
@@ -57,6 +59,8 @@
 #define UMUGU_CHANNELS 2
 #endif
 
+#define UMUGU_MAX_KEYS 64
+
 #ifndef UMUGU_NAME_LEN
 #define UMUGU_NAME_LEN 32
 #endif
@@ -97,6 +101,22 @@ enum {
     UMUGU_ERR_AUDIO_BACKEND,
     UMUGU_ERR,
 };
+
+typedef struct {
+    int32_t mapped_key;
+    int32_t node_pipeline_offset;
+    int32_t var_idx; /* Index in umugu_node_info::vars. */
+    union {
+        float f;
+        int32_t i;
+        uint32_t u;
+    } value;
+} umugu_input_key;
+
+typedef struct {
+    umugu_input_key keys[UMUGU_MAX_KEYS];
+    uint64_t dirty_keys;
+} umugu_input_state;
 
 /* Default sample type for the audio pipeline. This type will be used for
  * representing the amplitude (wave) values of an audio signal.
@@ -223,6 +243,8 @@ typedef struct {
      * WRITE: Umugu. */
     umugu_signal out_audio_signal;
 
+    umugu_input_state in;
+
     /* Audio backend state.
      * WRITE: Audio backends. */
     int32_t audio_backend_ready;
@@ -268,6 +290,8 @@ int umugu_init(void);
 /* Releases resources and closes streams. */
 int umugu_close(void);
 
+int umugu_read_inputs(void);
+
 /* Updates the audio output signal.
  * Populates the audio output signal with generated samples from the pipeline.
  * The caller is expected to set the output signal configuration before. */
@@ -298,6 +322,8 @@ int umugu_node_call(int fn, umugu_node **node, umugu_signal *out);
 /* Gets the node info from context's node infos.
  * Return a pointer to the node info in the context or NULL if not found. */
 const umugu_node_info *umugu_node_info_find(const umugu_name *name);
+
+const umugu_var_info *umugu_var_info_get(umugu_name node, int var_idx);
 
 /* Search the node name in the built-in nodes and add the node info to
  * the context. If there is no built-in node with that name, looks for
