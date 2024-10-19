@@ -6,7 +6,6 @@
 
 #include <imgui/imgui.h>
 
-#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,6 +28,7 @@ void PipelineBuilder::Show() {
   static umugu_name NodeName;
   if (ImGui::Button("Load info")) {
     umugu_node_info_load(&NodeName);
+    memset(NodeName.str, 0, 32);
   }
   ImGui::SameLine();
   ImGui::InputText("Node name", NodeName.str, UMUGU_NAME_LEN);
@@ -41,10 +41,9 @@ void PipelineBuilder::Show() {
   }
   AddNode(mNodes.end());
 
-  static char Buffer[1024];
+  static char Buffer[1024] = "../assets/pipelines/";
   ImGui::InputText("Filename", Buffer, 1024);
   if (ImGui::Button("Export")) {
-
     FILE *File = fopen(Buffer, "wb");
     if (!File) {
       printf("Could not open the file %s for writing.\n", Buffer);

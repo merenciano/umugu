@@ -157,6 +157,8 @@ typedef struct {
     char str[UMUGU_NAME_LEN];
 } umugu_name;
 
+#define umugu_name_create(STR_LITERAL) ((umugu_name){.str = (STR_LITERAL)})
+
 /* Node base class. All the created nodes should have this type as the first
  * data member of the struct. The name is enough for obtaining its associated
  * metadata (see: umugu_node_info) and then the offsets to the interface. */
@@ -232,6 +234,10 @@ typedef struct {
     int64_t size_bytes;
 } umugu_pipeline;
 
+typedef struct {
+    int32_t event;
+} umugu_midi;
+
 /* Input and output abstraction.
  * Communication layer between umugu and platform implementations. */
 typedef struct {
@@ -244,6 +250,8 @@ typedef struct {
     umugu_signal out_audio_signal;
 
     umugu_input_state in;
+
+    umugu_midi midi;
 
     /* Audio backend state.
      * WRITE: Audio backends. */
@@ -335,6 +343,14 @@ const umugu_node_info *umugu_node_info_load(const umugu_name *name);
 /* Active context instance manipulation. */
 void umugu_set_context(umugu_ctx *new_ctx);
 umugu_ctx *umugu_get_context(void);
+
+/* MIDI interface
+ */
+extern int umugu_midi_init(void);
+extern int umugu_midi_close(void);
+extern int umugu_midi_start_stream(void);
+extern int umugu_midi_stop_stream(void);
+extern int umugu_midi_poll(void);
 
 /* Audio backend generic interface.
  * This functions are not implemented by libumugu.a but provide a generic

@@ -33,6 +33,8 @@ private:
   void MetricsWindow();
   void PipelineWindow();
   void BuilderWindow();
+  void LoadWindow();
+  bool mShowLoadWindow = false;
   bool mShowPipelineWindow = true;
   bool mShowDemoWindow = false;
   bool mShowMetricsWindow = false;
