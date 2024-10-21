@@ -77,6 +77,14 @@
 #define UMUGU_DEFAULT_NODE_INFO_CAPACITY 64
 #endif
 
+#ifndef UMUGU_MIDI_INPUT_EVENTS_CAPACITY
+#define UMUGU_MIDI_INPUT_EVENTS_CAPACITY 127
+#endif
+
+#ifndef UMUGU_MIDI_OUTPUT_EVENTS_CAPACITY
+#define UMUGU_MIDI_OUTPUT_EVENTS_CAPACITY 8
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -99,6 +107,7 @@ enum {
     UMUGU_ERR_PLUG,
     UMUGU_ERR_STREAM,
     UMUGU_ERR_AUDIO_BACKEND,
+    UMUGU_ERR_MIDI,
     UMUGU_ERR,
 };
 
@@ -235,7 +244,11 @@ typedef struct {
 } umugu_pipeline;
 
 typedef struct {
-    int32_t event;
+    int32_t events[UMUGU_MIDI_INPUT_EVENTS_CAPACITY];
+    void *input_handle;
+    void *output_handle;
+    int8_t input_enabled;
+    int8_t output_enabled;
 } umugu_midi;
 
 /* Input and output abstraction.
