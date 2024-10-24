@@ -43,6 +43,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "umugu_midi.h"
+
 #define UMUGU_VERSION_MAJOR 0
 #define UMUGU_VERSION_MINOR 3
 #define UMUGU_VERSION_PATCH 0
@@ -75,14 +77,6 @@
 
 #ifndef UMUGU_DEFAULT_NODE_INFO_CAPACITY
 #define UMUGU_DEFAULT_NODE_INFO_CAPACITY 64
-#endif
-
-#ifndef UMUGU_MIDI_INPUT_EVENTS_CAPACITY
-#define UMUGU_MIDI_INPUT_EVENTS_CAPACITY 127
-#endif
-
-#ifndef UMUGU_MIDI_OUTPUT_EVENTS_CAPACITY
-#define UMUGU_MIDI_OUTPUT_EVENTS_CAPACITY 8
 #endif
 
 #ifdef __cplusplus
@@ -242,14 +236,6 @@ typedef struct {
     umugu_node *root;
     int64_t size_bytes;
 } umugu_pipeline;
-
-typedef struct {
-    int32_t events[UMUGU_MIDI_INPUT_EVENTS_CAPACITY];
-    void *input_handle;
-    void *output_handle;
-    int8_t input_enabled;
-    int8_t output_enabled;
-} umugu_midi;
 
 /* Input and output abstraction.
  * Communication layer between umugu and platform implementations. */
