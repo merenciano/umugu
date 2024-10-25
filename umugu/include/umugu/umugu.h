@@ -40,10 +40,10 @@
 #ifndef __UMUGU_H__
 #define __UMUGU_H__
 
+#include "umugu_midi.h"
+
 #include <stddef.h>
 #include <stdint.h>
-
-#include "umugu_midi.h"
 
 #define UMUGU_VERSION_MAJOR 0
 #define UMUGU_VERSION_MINOR 3
@@ -102,6 +102,8 @@ enum {
     UMUGU_ERR_STREAM,
     UMUGU_ERR_AUDIO_BACKEND,
     UMUGU_ERR_MIDI,
+    UMUGU_ERR_MIDI_INPUT,
+    UMUGU_ERR_MIDI_INPUT_SYSEX,
     UMUGU_ERR,
 };
 

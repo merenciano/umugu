@@ -123,9 +123,12 @@ UmuguMaker::UmuguMaker() {
   umugu_audio_backend_init();
   umugu_load_pipeline_bin("../assets/pipelines/default.bin");
 
-  int64_t base_offset = umugu_node_info_find(&umugu_name_create("Limiter"))->size_bytes +
-                        umugu_node_info_find(&umugu_name_create("Inspector"))->size_bytes;
-  int64_t osc_sz = umugu_node_info_find(&umugu_name_create("Oscilloscope"))->size_bytes;
+  umugu_name LimitName = {"Limiter"};
+  umugu_name InspecName = {"Inspector"};
+  umugu_name OsciName = {"Oscilloscope"};
+  int64_t base_offset =
+      umugu_node_info_find(&LimitName)->size_bytes + umugu_node_info_find(&InspecName)->size_bytes;
+  int64_t osc_sz = umugu_node_info_find(&OsciName)->size_bytes;
 
   int32_t KeyMaps[13] = {ImGuiKey_A, ImGuiKey_W, ImGuiKey_S, ImGuiKey_E, ImGuiKey_D,
                          ImGuiKey_F, ImGuiKey_T, ImGuiKey_G, ImGuiKey_Y, ImGuiKey_H,
