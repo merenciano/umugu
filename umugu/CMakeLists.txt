@@ -26,6 +26,7 @@ target_include_directories(umugu PRIVATE
 
 target_sources(umugu PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu_midi.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/builtin_nodes.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/oscilloscope.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/waveform.c
@@ -68,6 +69,16 @@ target_link_libraries(player-portaudio PRIVATE
     jack
     asound
     portaudio
+)
+
+add_executable(umidi)
+
+target_sources(umidi PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/umugutest_midi.c
+)
+
+target_link_libraries(umidi PRIVATE
+    portmidi
 )
 
 add_executable(player-stdout)
