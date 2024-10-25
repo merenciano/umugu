@@ -13,7 +13,7 @@ int main(void) {
     ctx->io.log = printf;
 
     umugu_init();
-    umugu_load_pipeline_bin("../assets/pipelines/plugtest.bin");
+    umugu_import_pipeline("../assets/pipelines/plugtest.bin");
 
     umugu_audio_backend_play(60000);
 

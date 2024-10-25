@@ -40,13 +40,11 @@
 #ifndef __UMUGU_H__
 #define __UMUGU_H__
 
-#include "umugu_midi.h"
-
 #include <stddef.h>
 #include <stdint.h>
 
 #define UMUGU_VERSION_MAJOR 0
-#define UMUGU_VERSION_MINOR 3
+#define UMUGU_VERSION_MINOR 4
 #define UMUGU_VERSION_PATCH 0
 
 #ifndef UMUGU_SAMPLE_RATE
@@ -79,11 +77,14 @@
 #define UMUGU_DEFAULT_NODE_INFO_CAPACITY 64
 #endif
 
+#define UMUGU_NOTE_COUNT 128
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 enum {
+    UMUGU_BADIDX = -1,
     /* Generic unspecified value. */
     UMUGU_NONE = 0,
 
@@ -102,26 +103,10 @@ enum {
     UMUGU_ERR_STREAM,
     UMUGU_ERR_AUDIO_BACKEND,
     UMUGU_ERR_MIDI,
-    UMUGU_ERR_MIDI_INPUT,
-    UMUGU_ERR_MIDI_INPUT_SYSEX,
     UMUGU_ERR,
 };
 
-typedef struct {
-    int32_t mapped_key;
-    int32_t node_pipeline_offset;
-    int32_t var_idx; /* Index in umugu_node_info::vars. */
-    union {
-        float f;
-        int32_t i;
-        uint32_t u;
-    } value;
-} umugu_input_key;
-
-typedef struct {
-    umugu_input_key keys[UMUGU_MAX_KEYS];
-    uint64_t dirty_keys;
-} umugu_input_state;
+enum { UMUGU_PIPE_SIGNAL, UMUGU_PIPE_CONTROL };
 
 /* Default sample type for the audio pipeline. This type will be used for
  * representing the amplitude (wave) values of an audio signal.
@@ -152,7 +137,7 @@ typedef struct {
 } umugu_signal;
 
 /* Node virtual functions. */
-enum { UMUGU_FN_INIT, UMUGU_FN_GETSIGNAL, UMUGU_FN_RELEASE };
+enum { UMUGU_FN_INIT, UMUGU_FN_GETSIGNAL, UMUGU_FN_PROCESS, UMUGU_FN_RELEASE };
 typedef int umugu_fn;
 
 /* Text struct for name handling. The whole array is taken into account
@@ -161,17 +146,6 @@ typedef int umugu_fn;
 typedef struct {
     char str[UMUGU_NAME_LEN];
 } umugu_name;
-
-#define umugu_name_create(STR_LITERAL) ((umugu_name){.str = (STR_LITERAL)})
-
-/* Node base class. All the created nodes should have this type as the first
- * data member of the struct. The name is enough for obtaining its associated
- * metadata (see: umugu_node_info) and then the offsets to the interface. */
-typedef struct umugu_node {
-    umugu_name name;
-} umugu_node;
-
-typedef int (*umugu_node_fn)(umugu_node **, umugu_signal *out);
 
 enum umugu_var_type_e {
     UMUGU_TYPE_BIT0 = 0,
@@ -188,6 +162,7 @@ enum umugu_var_type_e {
     UMUGU_TYPE_INT32,
     UMUGU_TYPE_FLOAT,
     UMUGU_TYPE_INT64,
+    UMUGU_TYPE_INT8,
     UMUGU_TYPE_PLOTLINE, /* TODO: Delete this. And come with a better idea. */
     UMUGU_TYPE_TEXT,
     UMUGU_TYPE_BOOL,
@@ -216,6 +191,21 @@ typedef struct {
     } misc;
 } umugu_var_info;
 
+/* Node base class. All the created nodes should have this type as the first
+ * data member of the struct. The name is enough for obtaining its associated
+ * metadata (see: umugu_node_info) and then the offsets to the interface. */
+typedef struct umugu_node {
+    umugu_name name; /* TODO: Change to node_info_idx */
+    int16_t node_info_idx;
+    int16_t pipe_in_node_idx;
+    int8_t pipe_in_channel;
+    int8_t pipe_out_type;
+    int8_t pipe_out_ready;
+    umugu_signal pipe_out;
+} umugu_node;
+
+typedef int (*umugu_node_fn)(umugu_node *);
+
 /* Like umugu_var_info does for data fields or variables, this struct
  * provides the required type information for interacting with nodes without
  * having access to its struct or having to provide specific implementations
@@ -229,14 +219,46 @@ typedef struct {
     void *plug_handle;
 } umugu_node_info;
 
+enum umugu_ctrl_defs {
+    UMUGU_CTRL_GP1,
+    UMUGU_CTRL_GP2,
+    UMUGU_CTRL_GP3,
+    UMUGU_CTRL_GP4,
+    UMUGU_CTRL_COUNT
+};
+
+enum umugu_ctrl_sound_defs {
+    UMUGU_CTRL_SOUND_VARIATION,
+    UMUGU_CTRL_SOUND_TIMBRE,
+    UMUGU_CTRL_SOUND_RELEASE_TIME,
+    UMUGU_CTRL_SOUND_ATTACK_TIME,
+    UMUGU_CTRL_SOUND_COUNT
+};
+
+enum umugu_ctrl_flags {
+    UMUGU_CTRL_FLAG_NONE = 0,
+    UMUGU_CTRL_FLAG_SOSTENUTO = 1 << 0,
+    UMUGU_CTRL_FLAG_SOFT_PEDAL = 1 << 1,
+};
+
+typedef struct {
+    int16_t ctrl[UMUGU_CTRL_COUNT];
+    int8_t sound[UMUGU_CTRL_SOUND_COUNT];
+    int8_t notes[128];
+    int32_t flags;
+    int16_t pitch;
+    int16_t volume;
+} umugu_ctrl;
+
 /* Defines the audio fx pipeline graph. Pipelines are the scenes of umugu.
  * This is where the data that define the output sound is stored. It contains
  * the graph defining the node i/o relations between them and its data.
  * Is the struct that has to be imported/exported or generated with tools
  * like umg-editor. */
 typedef struct {
-    umugu_node *root;
-    int64_t size_bytes;
+    umugu_node *nodes[64];
+    int64_t node_count;
+    umugu_ctrl control;
 } umugu_pipeline;
 
 /* Input and output abstraction.
@@ -249,10 +271,6 @@ typedef struct {
      * of the last umugu_produce_signal call.
      * WRITE: Umugu. */
     umugu_signal out_audio_signal;
-
-    umugu_input_state in;
-
-    umugu_midi midi;
 
     /* Audio backend state.
      * WRITE: Audio backends. */
@@ -270,6 +288,17 @@ typedef struct {
     void *backend_handle;
 } umugu_io;
 
+typedef struct {
+    uint8_t *buffer;
+    uint8_t *temp_next;
+    uint8_t *pers_next;
+    ptrdiff_t capacity; /* In bytes. */
+} umugu_mem_arena;
+
+void *umugu_alloc_pers(size_t bytes);
+void *umugu_alloc_temp(size_t bytes);
+umugu_frame *umugu_get_temp_signal(umugu_signal *s);
+
 typedef struct umugu_ctx {
     /* TODO: Better to have an arena and 2 types of allocators:
         - One persistent for the node params and internal state.
@@ -285,6 +314,7 @@ typedef struct umugu_ctx {
 
     /* Audio pipeline. */
     umugu_pipeline pipeline;
+    umugu_mem_arena arena;
 
     /* Loaded node types metadata (non persistent). */
     umugu_node_info nodes_info[UMUGU_DEFAULT_NODE_INFO_CAPACITY];
@@ -299,7 +329,7 @@ int umugu_init(void);
 /* Releases resources and closes streams. */
 int umugu_close(void);
 
-int umugu_read_inputs(void);
+int umugu_newframe(void);
 
 /* Updates the audio output signal.
  * Populates the audio output signal with generated samples from the pipeline.
@@ -309,13 +339,15 @@ int umugu_produce_signal(void);
 /* Export the current context's pipeline to binary data.
  * Return UMUGU_SUCCESS if saved successfuly or UMUGU_ERR_FILE if file open
  * fails. */
-int umugu_save_pipeline_bin(const char *filename);
+int umugu_export_pipeline(const char *filename);
 
 /* Import the binary file as the current context's pipeline.
  * Return UMUGU_SUCCESS if loaded successfuly, UMUGU_ERR_FILE if can not open
  * the file or the file is not formatted as a pipeline binary, and
  * UMUGU_ERR_MEM if the allocation of the pipeline buffer fails. */
-int umugu_load_pipeline_bin(const char *filename);
+int umugu_import_pipeline(const char *filename);
+
+int umugu_generate_test_pipeline(const char *filename);
 
 /* Search the file lib<name>.so in the rpath and load it if found.
  * Return the index of the context's node infos array where it has been copied.
@@ -326,7 +358,7 @@ void umugu_unplug(const umugu_name *name);
 /* Node virtual dispatching.
  * @param fn Function identifier, valid definitions are prefixed with UMUGU_FN_.
  * Return UMUGU_SUCCESS if the call is performed and UMUGU_ERR otherwise. */
-int umugu_node_call(int fn, umugu_node **node, umugu_signal *out);
+int umugu_node_dispatch(umugu_node *node, int fn);
 
 /* Gets the node info from context's node infos.
  * Return a pointer to the node info in the context or NULL if not found. */
@@ -344,14 +376,6 @@ const umugu_node_info *umugu_node_info_load(const umugu_name *name);
 /* Active context instance manipulation. */
 void umugu_set_context(umugu_ctx *new_ctx);
 umugu_ctx *umugu_get_context(void);
-
-/* MIDI interface
- */
-extern int umugu_midi_init(void);
-extern int umugu_midi_close(void);
-extern int umugu_midi_start_stream(void);
-extern int umugu_midi_stop_stream(void);
-extern int umugu_midi_poll(void);
 
 /* Audio backend generic interface.
  * This functions are not implemented by libumugu.a but provide a generic

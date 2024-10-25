@@ -79,5 +79,6 @@ target_link_libraries(umugu-maker PRIVATE
     SDL2
     -l:libimgui.a
     portaudio
+    portmidi
     jack
 )

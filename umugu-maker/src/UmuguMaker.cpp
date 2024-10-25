@@ -76,7 +76,7 @@ void UmuguMaker::ToolWindows() {
     ImGui::Begin("Load file");
     ImGui::InputText("Pipeline file to load", Buffer, 1024);
     if (ImGui::Button("Load")) {
-      umugu_load_pipeline_bin(Buffer);
+      umugu_import_pipeline(Buffer);
       mShowLoadWindow = false;
     }
     ImGui::End();
@@ -115,30 +115,17 @@ void UmuguMaker::ToolWindows() {
 
 UmuguMaker::UmuguMaker() {
   umugu_ctx *pCtx = umugu_get_context();
+  constexpr size_t Size = 1024 * 1024 * 1024;
+  pCtx->arena.buffer = (uint8_t *)malloc(Size);
+  pCtx->arena.capacity = Size;
+  pCtx->arena.pers_next = pCtx->arena.temp_next = pCtx->arena.buffer;
   pCtx->alloc = malloc;
   pCtx->free = free;
   pCtx->io.log = printf;
 
   umugu_init();
   umugu_audio_backend_init();
-  umugu_load_pipeline_bin("../assets/pipelines/default.bin");
-
-  umugu_name LimitName = {"Limiter"};
-  umugu_name InspecName = {"Inspector"};
-  umugu_name OsciName = {"Oscilloscope"};
-  int64_t base_offset =
-      umugu_node_info_find(&LimitName)->size_bytes + umugu_node_info_find(&InspecName)->size_bytes;
-  int64_t osc_sz = umugu_node_info_find(&OsciName)->size_bytes;
-
-  int32_t KeyMaps[13] = {ImGuiKey_A, ImGuiKey_W, ImGuiKey_S, ImGuiKey_E, ImGuiKey_D,
-                         ImGuiKey_F, ImGuiKey_T, ImGuiKey_G, ImGuiKey_Y, ImGuiKey_H,
-                         ImGuiKey_U, ImGuiKey_J, ImGuiKey_K};
-  for (int i = 0; i < 1; ++i) {
-    pCtx->io.in.keys[i].mapped_key = KeyMaps[i];
-    pCtx->io.in.keys[i].node_pipeline_offset = base_offset + (osc_sz * i);
-    pCtx->io.in.keys[i].var_idx = 0;
-    pCtx->io.in.keys[i].value.i = 0;
-  }
+  umugu_import_pipeline("../assets/pipelines/default.bin");
 
   umugu_audio_backend_start_stream();
   OpenWindow();
@@ -165,19 +152,6 @@ bool UmuguMaker::Update() {
   ImGui_ImplOpenGL3_NewFrame();
   ImGui_ImplSDL2_NewFrame();
   ImGui::NewFrame();
-  umugu_ctx *pCtx = umugu_get_context();
-
-  constexpr int kValues[] = {32 * 8, 34 * 8, 36 * 8, 38 * 8, 41 * 8, 43 * 8, 46 * 8,
-                             49 * 8, 52 * 8, 55 * 8, 58 * 8, 61 * 8, 64 * 8};
-  for (int i = 0; i < 1; ++i) {
-    if (ImGui::IsKeyDown((ImGuiKey)pCtx->io.in.keys[i].mapped_key)) {
-      pCtx->io.in.keys[i].value.i = kValues[i];
-      pCtx->io.in.dirty_keys |= (1UL << i);
-    } else {
-      pCtx->io.in.keys[i].value.i = 0;
-      pCtx->io.in.dirty_keys |= (1UL << i);
-    }
-  }
 
   MainMenu();
 

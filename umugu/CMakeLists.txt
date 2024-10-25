@@ -26,14 +26,17 @@ target_include_directories(umugu PRIVATE
 
 target_sources(umugu PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu_midi.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/builtin_nodes.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu_serialization.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/oscilloscope.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/waveform.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/wav_player.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/mixer.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/limiter.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/amplitude.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/control_midi.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/piano.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/output.c
 )
 
 add_compile_options(
@@ -57,6 +60,7 @@ link_libraries(
 	pthread
 	rt
     umugu
+    portmidi
 )
 
 add_executable(player-portaudio)
@@ -75,10 +79,6 @@ add_executable(umidi)
 
 target_sources(umidi PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/test/umugutest_midi.c
-)
-
-target_link_libraries(umidi PRIVATE
-    portmidi
 )
 
 add_executable(player-stdout)

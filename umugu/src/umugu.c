@@ -8,15 +8,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define UMUGU_HEAD_CODE 0x00454549
-#define UMUGU_TAIL_CODE 0x00555541
-
-#define UMUGU_GET_VERSION                                                      \
-    ((UMUGU_VERSION_MAJOR << 20) | (UMUGU_VERSION_MINOR << 10) |               \
-     UMUGU_VERSION_PATCH)
-
 #define UM_PTR(PTR, OFFSET_BYTES)                                              \
-    ((void*)((char*)((void*)(PTR)) + (OFFSET_BYTES)))
+    ((void *)((char *)((void *)(PTR)) + (OFFSET_BYTES)))
 
 static umugu_ctx g_default_ctx; /* Relying on zero-init from static memory. */
 static umugu_ctx *g_ctx = &g_default_ctx;
@@ -62,6 +55,30 @@ static inline int um__node_info_builtin_load(void) {
                           .var_count = um__limiter_var_count,
                           .getfn = um__limiter_getfn,
                           .vars = um__limiter_vars,
+                          .plug_handle = NULL};
+
+    g_builtin_nodes_info[5] =
+        (umugu_node_info){.name = {.str = "ControlMidi"},
+                          .size_bytes = um__ctrlmidi_size,
+                          .var_count = um__ctrlmidi_var_count,
+                          .getfn = um__ctrlmidi_getfn,
+                          .vars = um__ctrlmidi_vars,
+                          .plug_handle = NULL};
+
+    g_builtin_nodes_info[6] =
+        (umugu_node_info){.name = {.str = "Piano"},
+                          .size_bytes = um__piano_size,
+                          .var_count = um__piano_var_count,
+                          .getfn = um__piano_getfn,
+                          .vars = um__piano_vars,
+                          .plug_handle = NULL};
+
+    g_builtin_nodes_info[7] =
+        (umugu_node_info){.name = {.str = "Output"},
+                          .size_bytes = um__output_size,
+                          .var_count = um__output_var_count,
+                          .getfn = um__output_getfn,
+                          .vars = um__output_vars,
                           .plug_handle = NULL};
 
     return UMUGU_SUCCESS;
@@ -121,10 +138,8 @@ const umugu_node_info *umugu_node_info_load(const umugu_name *name) {
     return NULL;
 }
 
-
-const umugu_var_info *umugu_var_info_get(umugu_name node, int var_idx)
-{
-    assert(var_idx >= 0);
+const umugu_var_info *umugu_var_info_get(umugu_name node, int var_idx) {
+    assert(var_idx >= 0 && "Var index can not be negative.");
     assert(var_idx < 128 && "Delete this assert if var_idx is correct.");
     const umugu_node_info *info = umugu_node_info_find(&node);
     if (!info) {
@@ -134,151 +149,80 @@ const umugu_var_info *umugu_var_info_get(umugu_name node, int var_idx)
     return &info->vars[var_idx];
 }
 
-int umugu_read_inputs(void) {
-    typedef const umugu_var_info* var_p;
-    umugu_input_state *in = &g_ctx->io.in;
-    const uint64_t in_dirty = in->dirty_keys;
-
-    if (!in->dirty_keys) {
-        return UMUGU_NOOP;
+int umugu_newframe(void) {
+    for (int i = 0; i < g_ctx->pipeline.node_count; ++i) {
+        g_ctx->pipeline.nodes[i]->pipe_out_ready = 0;
     }
 
-    for (int i = 0; i < UMUGU_MAX_KEYS; ++i) {
-        if (in_dirty & (1UL << i)) {
-            umugu_node *node = UM_PTR(g_ctx->pipeline.root,
-                                      in->keys[i].node_pipeline_offset);
-            var_p var = umugu_var_info_get(node->name, in->keys[i].var_idx);
-            void *value = UM_PTR(node, var->offset_bytes);
-            switch(var->type) {
-            case UMUGU_TYPE_BOOL:
-            case UMUGU_TYPE_INT32:
-                *(int32_t*)value = in->keys[i].value.i;
-                break;
-            case UMUGU_TYPE_INT16:
-                *(int16_t*)value = in->keys[i].value.i;
-                break;
-            case UMUGU_TYPE_UINT8:
-                *(uint8_t*)value = in->keys[i].value.u;
-                break;
-            case UMUGU_TYPE_FLOAT:
-                *(float*)value= in->keys[i].value.f;
-                break;
-
-            default: break;
-            }
-        }
-    }
-
-    g_ctx->io.in.dirty_keys = 0;
     return UMUGU_SUCCESS;
 }
 
 int umugu_produce_signal(void) {
-    if (!g_ctx->pipeline.size_bytes) {
+    if (!g_ctx->pipeline.node_count) {
         return UMUGU_NOOP;
     }
 
-    umugu_node *it = g_ctx->pipeline.root;
-    int ret =
-        umugu_node_call(UMUGU_FN_GETSIGNAL, &it, &(g_ctx->io.out_audio_signal));
-
-    if (ret < UMUGU_SUCCESS) {
-        g_ctx->io.log("Fatal error: umugu getsignal call could not be made.\n");
+    for (int i = 0; i < g_ctx->pipeline.node_count; ++i) {
+        umugu_node *node = g_ctx->pipeline.nodes[i];
+        int err = umugu_node_dispatch(node, UMUGU_FN_PROCESS);
+        if (err < UMUGU_SUCCESS) {
+            g_ctx->io.log("Error (%d) processing node:\n"
+                          "\tIndex: %d.\n\tName: %s\n",
+                          err, i, g_ctx->nodes_info[node->node_info_idx].name);
+        }
     }
 
-    return ret;
+    return UMUGU_SUCCESS;
 }
 
 void umugu_set_context(umugu_ctx *new_ctx) { g_ctx = new_ctx; }
 
 umugu_ctx *umugu_get_context(void) { return g_ctx; }
 
-int umugu_save_pipeline_bin(const char *filename) {
-    FILE *f = fopen(filename, "wb");
-    if (!f) {
-        g_ctx->io.log("Could not open the file %s. Aborting pipeline save.",
-                      filename);
-        return UMUGU_ERR_FILE;
+void *umugu_alloc_pers(size_t bytes) {
+    umugu_mem_arena *mem = &g_ctx->arena;
+    uint8_t *ret = mem->pers_next;
+    if ((ret + bytes) > (mem->buffer + mem->capacity)) {
+        umugu_get_context()->io.log("Fatal error: Alloc failed. Not enough "
+                                    "space left in the arena.\n");
+        return NULL;
     }
-
-    struct {
-        int32_t head;
-        int32_t version;
-        int64_t size;
-    } header = {.head = UMUGU_HEAD_CODE,
-                .version = UMUGU_GET_VERSION,
-                .size = g_ctx->pipeline.size_bytes};
-    fwrite(&header, sizeof(header), 1, f);
-    fwrite(g_ctx->pipeline.root, header.size, 1, f);
-    int32_t tail = UMUGU_TAIL_CODE;
-    fwrite(&tail, sizeof(tail), 1, f);
-    fclose(f);
-
-    return UMUGU_SUCCESS;
+    mem->pers_next += bytes;
+    assert(mem->pers_next < (mem->buffer + mem->capacity));
+    return ret;
 }
 
-int umugu_load_pipeline_bin(const char *filename) {
-    FILE *f = fopen(filename, "rb");
-    if (!f) {
-        g_ctx->io.log("Could not open the file %s. Aborting pipeline load.\n",
-                      filename);
-        return UMUGU_ERR_FILE;
-    }
-
-    struct {
-        int32_t head;
-        int32_t version;
-        int64_t size;
-    } header;
-
-    fread(&header, sizeof(header), 1, f);
-    if (header.head != UMUGU_HEAD_CODE) {
-        g_ctx->io.log("Binary file %s header code does not match.\n", filename);
-        fclose(f);
-        return UMUGU_ERR_FILE;
-    }
-    /* TODO(Err): Check if version is supported. */
-
-    /* TODO? Remove this?? */
-    if (g_ctx->pipeline.root) {
-        assert(g_ctx->pipeline.size_bytes && "Zero size but non-NULL?");
-        // hmmmm... free?
-        g_ctx->free(g_ctx->pipeline.root);
-    }
-
-    g_ctx->pipeline.size_bytes = header.size;
-    g_ctx->pipeline.root = g_ctx->alloc(header.size);
-
-    if (!g_ctx->pipeline.root) {
-        g_ctx->io.log("Allocation failed. Aborting pipeline load.\n");
-        fclose(f);
-        return UMUGU_ERR_MEM;
-    }
-
-    fread(g_ctx->pipeline.root, header.size, 1, f);
-    int32_t tail;
-    fread(&tail, sizeof(tail), 1, f);
-    assert(tail == UMUGU_TAIL_CODE);
-    fclose(f);
-
-    /* Pipeline inits */
-    umugu_node *it = g_ctx->pipeline.root;
-    umugu_node_call(UMUGU_FN_INIT, &it, NULL);
-    return UMUGU_SUCCESS;
-}
-
-int umugu_node_call(umugu_fn fn, umugu_node **node, umugu_signal *out) {
-    const umugu_name *name = (umugu_name *)*node;
-    const umugu_node_info *info = umugu_node_info_find(name);
-    if (!info) {
-        info = umugu_node_info_load(name);
-        if (!info) {
-            g_ctx->io.log("Node type %s not found.\n", name->str);
-            return UMUGU_ERR;
+void *umugu_alloc_temp(size_t bytes) {
+    umugu_mem_arena *mem = &g_ctx->arena;
+    uint8_t *ret =
+        mem->temp_next > mem->pers_next ? mem->temp_next : mem->pers_next;
+    if ((ret + bytes) > (mem->buffer + mem->capacity)) {
+        /* Start again: temp memory is used as a circ buffer. */
+        ret = mem->pers_next;
+        if ((ret + bytes) > (mem->buffer + mem->capacity)) {
+            umugu_get_context()->io.log("Fatal error: Alloc failed. Not enough "
+                                        "space left in the arena.\n");
+            return NULL;
         }
     }
-    info->getfn(fn)(node, out);
-    return UMUGU_SUCCESS;
+    mem->temp_next = ret + bytes;
+    return ret;
+}
+
+umugu_frame *umugu_get_temp_signal(umugu_signal *s) {
+    int frame_count = g_ctx->io.out_audio_signal.count;
+    assert(s && (frame_count > 0));
+    s->frames = umugu_alloc_temp(frame_count * sizeof(umugu_frame));
+    s->count = frame_count;
+    s->capacity = frame_count;
+    return s->frames;
+}
+
+int umugu_node_dispatch(umugu_node *node, umugu_fn fn) {
+    assert(node->node_info_idx >= 0 && "Node info index can not be negative.");
+    assert(g_ctx->nodes_info_next > node->node_info_idx &&
+           "Node info not loaded.");
+    return g_ctx->nodes_info[node->node_info_idx].getfn(fn)(node);
 }
 
 int umugu_plug(const umugu_name *name) {

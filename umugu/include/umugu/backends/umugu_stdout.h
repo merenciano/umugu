@@ -77,8 +77,11 @@ int umugu_audio_backend_play(int milliseconds) {
                                                   .type = UMUGU_SAMPLE_TYPE,
                                                   .channels = UMUGU_CHANNELS,
                                                   .capacity = SAMPLE_COUNT};
-        umugu_node *it = graph->root;
-        umugu_node_call(UMUGU_FN_GETSIGNAL, &it, &(ctx->io.out_audio_signal));
+
+        umugu_newframe();
+        for (int i = 0; i < ctx->pipeline.node_count; ++i) {
+            umugu_node_dispatch(ctx->pipeline.nodes[0], UMUGU_FN_PROCESS);
+        }
 
         fwrite(frames, frame_count * sizeof(umugu_frame), 1, stdout);
     }

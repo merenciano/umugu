@@ -72,11 +72,11 @@ static inline float um__inv_range(int type) {
     }
 }
 
-static inline int um__init(umugu_node **node, umugu_signal *_) {
-    (void)_;
+static inline int um__init(umugu_node *node) {
     umugu_ctx *ctx = umugu_get_context();
-    um__wavplayer *self = (um__wavplayer *)*node;
-    *node = (umugu_node *)((char *)*node + sizeof(um__wavplayer));
+    um__wavplayer *self = (um__wavplayer *)node;
+    node->pipe_out_ready = 0;
+    node->pipe_out_type = UMUGU_PIPE_SIGNAL;
 
     self->file_handle = fopen(self->filename, "rb");
     if (!self->file_handle) {
@@ -114,12 +114,16 @@ static inline int um__init(umugu_node **node, umugu_signal *_) {
 }
 
 /* TODO: Implement this node type mmapping the wav. */
-static inline int um__getsignal(umugu_node **node, umugu_signal *out) {
-    um__wavplayer *self = (void *)*node;
-    *node = (void *)((char *)*node + sizeof(um__wavplayer));
+static inline int um__process(umugu_node *node) {
+    if (node->pipe_out_ready) {
+        return UMUGU_NOOP;
+    }
 
-    self->source.count = out->count;
+    um__wavplayer *self = (void *)node;
+    self->source.count = umugu_get_context()->io.out_audio_signal.count;
     assert(self->source.count <= self->source.capacity);
+
+    umugu_frame *out = umugu_get_temp_signal(&node->pipe_out);
 
     fread(self->source.frames,
           self->source.count * self->source.channels *
@@ -131,15 +135,17 @@ static inline int um__getsignal(umugu_node **node, umugu_signal *out) {
     /* For now we're assuming that te wav is also 48000 samples rate
         and signed int16. */
     int16_t *it = (int16_t *)(self->source.frames);
-    for (int i = 0; i < out->count; ++i) {
+    for (int i = 0; i < node->pipe_out.count; ++i) {
         if (self->source.channels == 2) {
-            out->frames[i].left = *it++ * inv_range;
-            out->frames[i].right = *it++ * inv_range;
+            out[i].left = *it++ * inv_range;
+            out[i].right = *it++ * inv_range;
         } else {
-            out->frames[i].left = *it * inv_range;
-            out->frames[i].right = *it++ * inv_range;
+            out[i].left = *it * inv_range;
+            out[i].right = *it++ * inv_range;
         }
     }
+
+    node->pipe_out_ready = 1;
 
     return UMUGU_SUCCESS;
 }
@@ -148,8 +154,8 @@ umugu_node_fn um__wavplayer_getfn(umugu_fn fn) {
     switch (fn) {
     case UMUGU_FN_INIT:
         return um__init;
-    case UMUGU_FN_GETSIGNAL:
-        return um__getsignal;
+    case UMUGU_FN_PROCESS:
+        return um__process;
     default:
         return NULL;
     }

@@ -1,5 +1,7 @@
 #include <umugu/umugu.h>
 
+#include <math.h>
+
 struct Acid {
   umugu_node Node;
   float Cutoff;
@@ -9,10 +11,6 @@ struct Acid {
   float Drive;
   float Mix;
 };
-
-#ifndef offsetof
-#define offsetof(t, d) __builtin_offsetof(t, d)
-#endif
 
 static const umugu_var_info var_metadata[] = {{.name = {.str = "Cutoff"},
                                                .offset_bytes = offsetof(Acid, Cutoff),
@@ -42,30 +40,30 @@ extern "C" const int32_t var_count = 4;
 
 const umugu_var_info *vars = &var_metadata[0];
 
-static int Init(umugu_node **apNode, umugu_signal *_) {
-  Acid *pSelf = (Acid *)*apNode;
-  *apNode = (umugu_node *)((char *)*apNode + size);
-  umugu_node_call(UMUGU_FN_INIT, apNode, _);
+static int Init(umugu_node *apNode) {
+  Acid *pSelf = (Acid *)apNode;
   pSelf->Buf0 = 0.0f;
   pSelf->Buf1 = 0.0f;
   return UMUGU_SUCCESS;
 }
-#include <math.h>
-umugu_frame Distortion(umugu_frame aInput, Acid &aSelf) {
+
+static inline umugu_frame Distortion(umugu_frame aInput, Acid &aSelf) {
   aInput.left *= aSelf.Drive;
   aInput.right *= aSelf.Drive;
   return {.left = aInput.left > 0.0f ? 1.0f - expf(-aInput.left) : -1.0f + expf(aInput.left),
           .right = aInput.right > 0.0f ? 1.0f - expf(-aInput.right) : -1.0f + expf(aInput.right)};
 }
 
-static int GetSignal(umugu_node **apNode, umugu_signal *apOut) {
-  Acid *pSelf = (Acid *)*apNode;
-  *apNode = (umugu_node *)((char *)*apNode + size);
+static int Process(umugu_node *apNode) {
+  if (apNode->pipe_out_ready) {
+    return UMUGU_NOOP;
+  }
 
-  umugu_node_call(UMUGU_FN_GETSIGNAL, apNode, apOut);
+  Acid *pSelf = (Acid *)apNode;
 
-  const int Count = apOut->count;
-  float Fb = pSelf->Resonance + pSelf->Resonance / (1.0f - pSelf->Cutoff);
+  auto pOut = umugu_get_temp_signal(&apNode->pipe_out);
+  const int Count = apNode->pipe_out.count;
+  // float Fb = pSelf->Resonance + pSelf->Resonance / (1.0f - pSelf->Cutoff);
 
   for (int i = 0; i < Count; i++) {
 #if 0
@@ -76,10 +74,9 @@ static int GetSignal(umugu_node **apNode, umugu_signal *apOut) {
     apOut->frames[i].right = pSelf->Buf1;
     printf("%f, %f \n", apOut->frames[i].left, apOut->frames[i].right);
 #endif
-    auto Frame = Distortion(apOut->frames[i], *pSelf);
-    apOut->frames[i].left = apOut->frames[i].left * (1.0f - pSelf->Mix) + Frame.left * pSelf->Mix;
-    apOut->frames[i].right =
-        apOut->frames[i].right * (1.0f - pSelf->Mix) + Frame.right * pSelf->Mix;
+    auto Frame = Distortion(pOut[i], *pSelf);
+    pOut[i].left = pOut[i].left * (1.0f - pSelf->Mix) + Frame.left * pSelf->Mix;
+    pOut[i].right = pOut[i].right * (1.0f - pSelf->Mix) + Frame.right * pSelf->Mix;
   }
   return UMUGU_SUCCESS;
 }
@@ -88,8 +85,8 @@ umugu_node_fn getfn(int32_t fn) {
   switch (fn) {
   case UMUGU_FN_INIT:
     return Init;
-  case UMUGU_FN_GETSIGNAL:
-    return GetSignal;
+  case UMUGU_FN_PROCESS:
+    return Process;
   default:
     return nullptr;
   }

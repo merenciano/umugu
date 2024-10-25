@@ -16,6 +16,7 @@ int umugu_audio_backend_stop_stream(void);
 
 #endif /* __UMUGU_PORTAUDIO_19_H__ */
 
+#define UMUGU_PORTAUDIO19_IMPL
 #ifdef UMUGU_PORTAUDIO19_IMPL
 
 #include <umugu/umugu.h>
@@ -64,7 +65,7 @@ static inline int um__pa_callback(const void *in_buffer, void *out_buffer,
     ctx->io.out_audio_signal.channels = UMUGU_CHANNELS;
     ctx->io.out_audio_signal.capacity = frame_count;
 
-    umugu_read_inputs();
+    umugu_newframe();
     umugu_produce_signal();
 
     if (!ctx->io.audio_backend_ready) {

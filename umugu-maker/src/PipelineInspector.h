@@ -10,7 +10,7 @@ public:
   void Show();
 
 private:
-  void NodeWidgets(umugu_node **apNode);
+  void NodeWidgets(umugu_node *apNode);
 };
 } // namespace umumk
 

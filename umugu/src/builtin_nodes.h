@@ -33,7 +33,25 @@ extern const int32_t um__mixer_var_count;
 extern const umugu_var_info um__mixer_vars[];
 extern umugu_node_fn um__mixer_getfn(umugu_fn fn);
 
-enum { UM__BUILTIN_NODES_COUNT = 5 };
+/* Control midi - umugu/src/nodes/control_midi.c */
+extern const int32_t um__ctrlmidi_size;
+extern const int32_t um__ctrlmidi_var_count;
+extern const umugu_var_info um__ctrlmidi_vars[];
+extern umugu_node_fn um__ctrlmidi_getfn(umugu_fn fn);
+
+/* Piano - umugu/src/nodes/piano.c */
+extern const int32_t um__piano_size;
+extern const int32_t um__piano_var_count;
+extern const umugu_var_info um__piano_vars[];
+extern umugu_node_fn um__piano_getfn(umugu_fn fn);
+
+/* Output - umugu/src/nodes/output.c */
+extern const int32_t um__output_size;
+extern const int32_t um__output_var_count;
+extern const umugu_var_info um__output_vars[];
+extern umugu_node_fn um__output_getfn(umugu_fn fn);
+
+enum { UM__BUILTIN_NODES_COUNT = 8 };
 extern umugu_node_info g_builtin_nodes_info[UM__BUILTIN_NODES_COUNT];
 
 /* Waveform helpers - umugu/src/nodes/waveform.c */

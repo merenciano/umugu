@@ -1,5 +1,7 @@
 #include <umugu/umugu.h>
 
+#include <assert.h>
+
 struct Inspector {
   umugu_node Node;
   float *OutValues;
@@ -11,10 +13,6 @@ struct Inspector {
   int32_t Offset;
   int32_t Pause;
 };
-
-#ifndef offsetof
-#define offsetof(t, d) __builtin_offsetof(t, d)
-#endif
 
 static const umugu_var_info var_metadata[] = {
     {.name = {.str = "Values"},
@@ -46,10 +44,8 @@ extern "C" const int32_t var_count = 4;
 
 const umugu_var_info *vars = &var_metadata[0];
 
-static int Init(umugu_node **apNode, umugu_signal *_) {
-  Inspector *pSelf = (Inspector *)*apNode;
-  *apNode = (umugu_node *)((char *)*apNode + size);
-  umugu_node_call(UMUGU_FN_INIT, apNode, _);
+static int Init(umugu_node *apNode) {
+  Inspector *pSelf = (Inspector *)apNode;
   pSelf->It = 0;
   pSelf->Offset = 0;
   pSelf->Stride = 2;
@@ -57,29 +53,40 @@ static int Init(umugu_node **apNode, umugu_signal *_) {
   pSelf->Pause = false;
   pSelf->Values = (float *)(*umugu_get_context()->alloc)(pSelf->Size * 2 * sizeof(float));
   pSelf->OutValues = pSelf->Values;
+  apNode->pipe_out_ready = false;
   return UMUGU_SUCCESS;
 }
 
-static int GetSignal(umugu_node **apNode, umugu_signal *apOut) {
-  Inspector *pSelf = (Inspector *)*apNode;
-  *apNode = (umugu_node *)((char *)*apNode + size);
+static int Process(umugu_node *apNode) {
+  if (apNode->pipe_out_ready) {
+    return UMUGU_NOOP;
+  }
 
-  umugu_node_call(UMUGU_FN_GETSIGNAL, apNode, apOut);
+  auto pCtx = umugu_get_context();
+  Inspector *pSelf = (Inspector *)apNode;
+  auto pInputNode = pCtx->pipeline.nodes[apNode->pipe_in_node_idx];
+  if (!pInputNode->pipe_out_ready) {
+    umugu_node_dispatch(apNode, UMUGU_FN_PROCESS);
+    assert(pInputNode->pipe_out_ready);
+  }
+
   if (pSelf->Pause) {
     return UMUGU_SUCCESS;
   }
 
-  float *pOutFloat = (float *)apOut->frames;
-  const int Count = apOut->count;
+  float *pInputFloat = (float *)pInputNode->pipe_out.frames;
+  const int Count = pInputNode->pipe_out.count;
   for (int i = pSelf->Offset; i < Count * 2; i += pSelf->Stride) {
-    pSelf->Values[pSelf->It] = pOutFloat[i];
-    pSelf->Values[pSelf->It + pSelf->Size] = pOutFloat[i];
+    pSelf->Values[pSelf->It] = pInputFloat[i];
+    pSelf->Values[pSelf->It + pSelf->Size] = pInputFloat[i];
     pSelf->It++;
     if (pSelf->It >= pSelf->Size) {
       pSelf->It -= pSelf->Size;
     }
   }
   pSelf->OutValues = pSelf->Values + pSelf->It;
+  apNode->pipe_out = pInputNode->pipe_out;
+  apNode->pipe_out_ready = true;
   return UMUGU_SUCCESS;
 }
 
@@ -87,8 +94,8 @@ umugu_node_fn getfn(int32_t fn) {
   switch (fn) {
   case UMUGU_FN_INIT:
     return Init;
-  case UMUGU_FN_GETSIGNAL:
-    return GetSignal;
+  case UMUGU_FN_PROCESS:
+    return Process;
   default:
     return nullptr;
   }
