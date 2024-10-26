@@ -8,31 +8,6 @@
 
 #define UMUGU_MIDI_EVENT_CAPACITY 64
 
-typedef struct {
-    umugu_node node;
-    char dev_name[128];
-    PmDeviceID dev_idx;
-    int8_t channel;
-    PmStream *stream;
-} um__ctrlmidi;
-
-const int32_t um__ctrlmidi_size = (int32_t)sizeof(um__ctrlmidi);
-const int32_t um__ctrlmidi_var_count = 2;
-
-static int um__pm_initialized = 0;
-
-const umugu_var_info um__ctrlmidi_vars[] = {
-    {.name = {.str = "Device"},
-     .offset_bytes = offsetof(um__ctrlmidi, dev_name),
-     .type = UMUGU_TYPE_TEXT,
-     .count = 128},
-    {.name = {.str = "MIDI channel"},
-     .offset_bytes = offsetof(um__ctrlmidi, channel),
-     .type = UMUGU_TYPE_INT8,
-     .count = 1,
-     .misc.range.min = 0,
-     .misc.range.max = 15}};
-
 enum umugu_midi_message_ids {
     UMUGU_MIDI_NOTE_OFF = 0x80,
     UMUGU_MIDI_NOTE_ON = 0x90,
@@ -41,6 +16,8 @@ enum umugu_midi_message_ids {
 
     UMUGU_MIDI_PITCH_WHEEL_CENTER = 0x2000
 };
+
+static int um__pm_initialized = 0;
 
 static inline int umugu_midi_event_status_channel(int msg) { return msg & 0xF; }
 static inline int umugu_midi_event_status_status(int msg) { return msg & 0xF0; }

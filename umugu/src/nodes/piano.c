@@ -9,23 +9,6 @@ static const float notes_hz[12] = {261.63f, 277.18f, 293.66f, 311.13f,
                                    329.63f, 349.23f, 369.99f, 392.0f,
                                    415.3f,  440.0f,  466.16f, 493.88f};
 
-typedef struct {
-    umugu_node node;
-    int32_t waveform;
-    int32_t phase[128];
-} um__piano;
-
-const int32_t um__piano_size = (int32_t)sizeof(um__piano);
-const int32_t um__piano_var_count = 1;
-
-const umugu_var_info um__piano_vars[] = {
-    {.name = {.str = "Waveform"},
-     .offset_bytes = offsetof(um__piano, waveform),
-     .type = UMUGU_TYPE_INT32,
-     .count = 1,
-     .misc.range.min = 0,
-     .misc.range.max = UM__WAVEFORM_COUNT}};
-
 static inline int um__init(umugu_node *node) {
     node->pipe_out_type = UMUGU_PIPE_SIGNAL;
     node->pipe_out_ready = 0;
@@ -58,7 +41,7 @@ static inline int um__process(umugu_node *node) {
             float freq = notes_hz[n] * powf(2.0f, oct - 4.0f);
             for (int i = 0; i < node->pipe_out.count; ++i) {
                 float sample =
-                    um__waveform_lut[self->waveform][self->phase[note]];
+                    umugu_waveform_lut[self->waveform][self->phase[note]];
                 out[i].left += sample;
                 out[i].right += sample;
                 self->phase[note] += freq;

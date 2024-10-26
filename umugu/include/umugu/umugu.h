@@ -136,8 +136,21 @@ typedef struct {
     int64_t capacity; /* max frame capacity (greater than count) */
 } umugu_signal;
 
+enum {
+    UMUGU_WAVEFORM_SINE = 0,
+    UMUGU_WAVEFORM_SAW,
+    UMUGU_WAVEFORM_SQUARE,
+    UMUGU_WAVEFORM_TRIANGLE,
+    UMUGU_WAVEFORM_WHITE_NOISE,
+    UMUGU_WAVEFORM_COUNT
+};
+
+/* Look-up table with waveform signals. TODO: mmap binary file instead of
+ * compiling .c */
+extern const float umugu_waveform_lut[UMUGU_WAVEFORM_COUNT][UMUGU_SAMPLE_RATE];
+
 /* Node virtual functions. */
-enum { UMUGU_FN_INIT, UMUGU_FN_GETSIGNAL, UMUGU_FN_PROCESS, UMUGU_FN_RELEASE };
+enum { UMUGU_FN_INIT, UMUGU_FN_PROCESS, UMUGU_FN_RELEASE };
 typedef int umugu_fn;
 
 /* Text struct for name handling. The whole array is taken into account
@@ -169,6 +182,11 @@ enum umugu_var_type_e {
     UMUGU_TYPE_COUNT
 };
 
+enum umugu_var_flags {
+    UMUGU_VAR_NONE = 0,
+    UMUGU_VAR_RDONLY = 1,
+};
+
 /* Node field descriptor with type metadata for external node communication
  * in a generic manner. The objective is to be able to serialize, interact
  * and draw widgets to interact with unknown nodes as long as they have
@@ -178,16 +196,16 @@ typedef struct {
     int16_t offset_bytes; /* from struct's start */
     int16_t type;         /* enum umugu_var_type_e */
     int32_t count;        /* number of elements i.e. array */
-    /* TODO: Think what to do with this two floats... only useful for
-             some types, and a lot of the other types would benefit from extra
-             data but I don't want to start throwing here every variable
-             that could be useful when drawing widgets or whatever.
-             Union maybe? */
+    int32_t flags;
     union {
         struct {
             float min;
             float max;
-        } range;
+        } rangef;
+        struct {
+            int32_t min;
+            int32_t max;
+        } rangei;
     } misc;
 } umugu_var_info;
 
@@ -295,24 +313,16 @@ typedef struct {
     ptrdiff_t capacity; /* In bytes. */
 } umugu_mem_arena;
 
+/* Assigns a memory chunk to the context's arena.
+ * This lib does not take ownership of the buffer, but it must remain valid
+ * until another one is assigned or program termination.
+ */
+int umugu_set_arena(void *buffer, size_t bytes);
 void *umugu_alloc_pers(size_t bytes);
 void *umugu_alloc_temp(size_t bytes);
 umugu_frame *umugu_get_temp_signal(umugu_signal *s);
 
 typedef struct umugu_ctx {
-    /* TODO: Better to have an arena and 2 types of allocators:
-        - One persistent for the node params and internal state.
-        - Another that resets between umugu_produce_signal calls, so
-          can be used for any temporal data required during the
-          pipeline's graph processing and forget about it.
-          It could be a circular allocator using the arena's remaining
-          space from the persistent allocs.
-
-        None of them sould have free, so remove it too. */
-    void *(*alloc)(size_t bytes);
-    void (*free)(void *ptr);
-
-    /* Audio pipeline. */
     umugu_pipeline pipeline;
     umugu_mem_arena arena;
 

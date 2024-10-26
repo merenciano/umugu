@@ -61,7 +61,6 @@ int umugu_audio_backend_play(int milliseconds) {
     enum { SAMPLE_COUNT = UMUGU_DEFAULT_SAMPLE_CAPACITY };
     umugu_frame frames[SAMPLE_COUNT];
     umugu_ctx *ctx = umugu_get_context();
-    umugu_pipeline *graph = &ctx->pipeline;
 
     int frames_left = (int)(UMUGU_SAMPLE_RATE / 1000) * milliseconds;
     assert(frames_left >= 0);

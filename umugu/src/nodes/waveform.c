@@ -9,11 +9,11 @@ void um__gen_wave_file(const char *filename) {
     fprintf(
         f,
         "#include \"umugu.h\"\n\nconst float "
-        "umugu_osciloscope_lut[UM__WAVEFORM_COUNT][UMUGU_SAMPLE_RATE] = {\n");
-    for (int i = 0; i < UM__WAVEFORM_COUNT; ++i) {
+        "umugu_osciloscope_lut[UMUGU_WAVEFORM_COUNT][UMUGU_SAMPLE_RATE] = {\n");
+    for (int i = 0; i < UMUGU_WAVEFORM_COUNT; ++i) {
         fprintf(f, "{");
         for (int j = 0; j < UMUGU_SAMPLE_RATE; ++j) {
-            fprintf(f, "%ff, ", um__waveform_lut[i][j]);
+            fprintf(f, "%ff, ", umugu_waveform_lut[i][j]);
         }
         fprintf(f, "},\n");
     }
@@ -28,24 +28,24 @@ void um__fill_wave_lut(void) {
     float lerp = 0.0f;
     for (int i = 0; i < UMUGU_SAMPLE_RATE; ++i) {
         float cos_value = cosf((i / (float)UMUGU_SAMPLE_RATE) * M_PI * 2.0f);
-        *(float *)&um__waveform_lut[UM__WAVEFORM_TRIANGLE][i] = lerp;
+        *(float *)&umugu_waveform_lut[UMUGU_WAVEFORM_TRIANGLE][i] = lerp;
         lerp += (cos_value > 0.0f ? linear_step : -linear_step);
     }
 
     // Sine and square waves
     for (int i = 0; i < UMUGU_SAMPLE_RATE; ++i) {
         float sine_value = sinf((i / (float)UMUGU_SAMPLE_RATE) * M_PI * 2.0f);
-        *(float *)&um__waveform_lut[UM__WAVEFORM_SINE][i] = sine_value;
-        *(float *)&um__waveform_lut[UM__WAVEFORM_SQUARE][i] =
+        *(float *)&umugu_waveform_lut[UMUGU_WAVEFORM_SINE][i] = sine_value;
+        *(float *)&umugu_waveform_lut[UMUGU_WAVEFORM_SQUARE][i] =
             sine_value > 0.0f ? 1.0f : -1.0f;
     }
 
     // Saw wave
     for (int i = 0; i < UMUGU_SAMPLE_RATE; ++i) {
-        *(float *)&um__waveform_lut[UM__WAVEFORM_SAW][i] =
+        *(float *)&umugu_waveform_lut[UMUGU_WAVEFORM_SAW][i] =
             (float)i / (UMUGU_SAMPLE_RATE / 2.0f);
         if (i > (UMUGU_SAMPLE_RATE / 2.0f)) {
-            *(float *)&um__waveform_lut[UM__WAVEFORM_SAW][i] -= 2.0f;
+            *(float *)&umugu_waveform_lut[UMUGU_WAVEFORM_SAW][i] -= 2.0f;
         }
     }
 
@@ -54,13 +54,13 @@ void um__fill_wave_lut(void) {
     int g_x2 = 0xefcdab89;
     for (int i = 0; i < UMUGU_SAMPLE_RATE; ++i) {
         g_x1 ^= g_x2;
-        *(float *)&um__waveform_lut[UM__WAVEFORM_WHITE_NOISE][i] =
+        *(float *)&umugu_waveform_lut[UMUGU_WAVEFORM_WHITE_NOISE][i] =
             g_x2 * (2.0f / (float)0xffffffff);
         g_x2 += g_x1;
     }
 }
 
-const float um__waveform_lut[UM__WAVEFORM_COUNT][UMUGU_SAMPLE_RATE] = {
+const float umugu_waveform_lut[UMUGU_WAVEFORM_COUNT][UMUGU_SAMPLE_RATE] = {
     {0.000000f,  0.000131f,  0.000262f,  0.000393f,  0.000524f,  0.000654f,
      0.000785f,  0.000916f,  0.001047f,  0.001178f,  0.001309f,  0.001440f,
      0.001571f,  0.001702f,  0.001833f,  0.001963f,  0.002094f,  0.002225f,

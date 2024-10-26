@@ -19,7 +19,7 @@
 // TODO: Stride (plotting all the points is causing fps drops)
 #define PLOT_WAVE_SHAPE(WS, R, G, B)                                                               \
   ImPlot::PushStyleColor(ImPlotCol_Line, ImVec4(R, G, B, 1.0f));                                   \
-  ImPlot::PlotLine(kWaveformNames[WS], um__waveform_lut[WS], UMUGU_SAMPLE_RATE);                   \
+  ImPlot::PlotLine(kWaveformNames[WS], umugu_waveform_lut[WS], UMUGU_SAMPLE_RATE);                 \
   ImPlot::PopStyleColor()
 
 namespace umumk {
@@ -98,11 +98,11 @@ void UmuguMaker::ToolWindows() {
   if (mShowWaveformWindow) {
     ImGui::Begin("Waveform viewer");
     if (ImPlot::BeginPlot("Wave form")) {
-      PLOT_WAVE_SHAPE(UM__WAVEFORM_SINE, 1.0f, 0.0f, 0.0f);
-      PLOT_WAVE_SHAPE(UM__WAVEFORM_SAW, 0.0f, 1.0f, 0.0f);
-      PLOT_WAVE_SHAPE(UM__WAVEFORM_SQUARE, 0.0f, 0.0f, 1.0f);
-      PLOT_WAVE_SHAPE(UM__WAVEFORM_TRIANGLE, 1.0f, 0.0f, 1.0f);
-      PLOT_WAVE_SHAPE(UM__WAVEFORM_WHITE_NOISE, 1.0f, 1.0f, 0.0f);
+      PLOT_WAVE_SHAPE(UMUGU_WAVEFORM_SINE, 1.0f, 0.0f, 0.0f);
+      PLOT_WAVE_SHAPE(UMUGU_WAVEFORM_SAW, 0.0f, 1.0f, 0.0f);
+      PLOT_WAVE_SHAPE(UMUGU_WAVEFORM_SQUARE, 0.0f, 0.0f, 1.0f);
+      PLOT_WAVE_SHAPE(UMUGU_WAVEFORM_TRIANGLE, 1.0f, 0.0f, 1.0f);
+      PLOT_WAVE_SHAPE(UMUGU_WAVEFORM_WHITE_NOISE, 1.0f, 1.0f, 0.0f);
       ImPlot::EndPlot();
     }
     ImGui::End();
@@ -114,14 +114,9 @@ void UmuguMaker::ToolWindows() {
 }
 
 UmuguMaker::UmuguMaker() {
-  umugu_ctx *pCtx = umugu_get_context();
   constexpr size_t Size = 1024 * 1024 * 1024;
-  pCtx->arena.buffer = (uint8_t *)malloc(Size);
-  pCtx->arena.capacity = Size;
-  pCtx->arena.pers_next = pCtx->arena.temp_next = pCtx->arena.buffer;
-  pCtx->alloc = malloc;
-  pCtx->free = free;
-  pCtx->io.log = printf;
+  umugu_set_arena(malloc(Size), Size);
+  umugu_get_context()->io.log = printf;
 
   umugu_init();
   umugu_audio_backend_init();

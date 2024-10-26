@@ -4,45 +4,13 @@
 #include <assert.h>
 #include <string.h>
 
-#define UMUGU_MIXER_MAX_INPUTS 8
-
-typedef struct {
-    umugu_node node;
-    int32_t input_count;
-    int16_t extra_pipe_in_node_idx[UMUGU_MIXER_MAX_INPUTS];
-    int8_t extra_pipe_in_channel[UMUGU_MIXER_MAX_INPUTS];
-} um__mixer;
-
-const int32_t um__mixer_size = (int32_t)sizeof(um__mixer);
-const int32_t um__mixer_var_count = 1;
-
-const umugu_var_info um__mixer_vars[] = {
-    {.name = {.str = "InputCount"},
-     .offset_bytes = offsetof(um__mixer, input_count),
-     .type = UMUGU_TYPE_INT32,
-     .count = 1,
-     .misc.range.min = 0,
-     .misc.range.max = 32},
-    {.name = {.str = "ExtraInputPipeNodeIdx"},
-     .offset_bytes = offsetof(um__mixer, extra_pipe_in_node_idx),
-     .type = UMUGU_TYPE_INT16,
-     .count = UMUGU_MIXER_MAX_INPUTS,
-     .misc.range.min = 0,
-     .misc.range.max = 9999},
-    {.name = {.str = "ExtraInputPipeChannel"},
-     .offset_bytes = offsetof(um__mixer, extra_pipe_in_channel),
-     .type = UMUGU_TYPE_INT8,
-     .count = UMUGU_MIXER_MAX_INPUTS,
-     .misc.range.min = 0,
-     .misc.range.max = UMUGU_CHANNELS}};
+static umugu_frame frames_empty[256];
 
 static inline int um__init(umugu_node *node) {
     node->pipe_out_ready = 0;
     node->pipe_out_type = UMUGU_PIPE_SIGNAL;
     return UMUGU_SUCCESS;
 }
-
-static umugu_frame frames_empty[256];
 
 static inline int um__process(umugu_node *node) {
     if (node->pipe_out_ready) {

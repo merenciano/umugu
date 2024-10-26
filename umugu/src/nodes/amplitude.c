@@ -3,23 +3,6 @@
 
 #include <assert.h>
 
-typedef struct {
-    umugu_node node;
-    float multiplier;
-    int32_t padding;
-} um__amplitude;
-
-const int32_t um__amplitude_size = (int32_t)sizeof(um__amplitude);
-const int32_t um__amplitude_var_count = 1;
-
-const umugu_var_info um__amplitude_vars[] = {
-    {.name = {.str = "Multiplier"},
-     .offset_bytes = offsetof(um__amplitude, multiplier),
-     .type = UMUGU_TYPE_FLOAT,
-     .count = 1,
-     .misc.range.min = 0.0f,
-     .misc.range.max = 5.0f}};
-
 static inline int um__init(umugu_node *node) {
     node->pipe_out_type = UMUGU_PIPE_SIGNAL;
     node->pipe_out_ready = 0;

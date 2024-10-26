@@ -3,30 +3,6 @@
 
 #include <string.h>
 
-typedef struct {
-    umugu_node node;
-    int32_t phase;
-    int32_t freq;
-    int32_t waveform;
-} um__oscope;
-
-const int32_t um__oscope_size = (int32_t)sizeof(um__oscope);
-const int32_t um__oscope_var_count = 2;
-
-const umugu_var_info um__oscope_vars[] = {
-    {.name = {.str = "Frequency"},
-     .offset_bytes = offsetof(um__oscope, freq),
-     .type = UMUGU_TYPE_INT32,
-     .count = 1,
-     .misc.range.min = 1,
-     .misc.range.max = 8372},
-    {.name = {.str = "Waveform"},
-     .offset_bytes = offsetof(um__oscope, waveform),
-     .type = UMUGU_TYPE_INT32,
-     .count = 1,
-     .misc.range.min = 0,
-     .misc.range.max = UM__WAVEFORM_COUNT}};
-
 static inline int um__init(umugu_node *node) {
     node->pipe_out_ready = 0;
     node->pipe_out_type = UMUGU_PIPE_SIGNAL;
@@ -47,7 +23,7 @@ static inline int um__process(umugu_node *node) {
     }
 
     for (int i = 0; i < node->pipe_out.count; i++) {
-        float sample = um__waveform_lut[self->waveform][self->phase];
+        float sample = umugu_waveform_lut[self->waveform][self->phase];
         out[i].left = sample;
         out[i].right = sample;
         self->phase += self->freq;

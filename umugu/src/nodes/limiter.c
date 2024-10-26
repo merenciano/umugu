@@ -3,29 +3,6 @@
 #include <assert.h>
 #include <math.h>
 
-typedef struct {
-    umugu_node node;
-    float min;
-    float max;
-} um__limiter;
-
-const int32_t um__limiter_size = (int32_t)sizeof(um__limiter);
-const int32_t um__limiter_var_count = 2;
-
-const umugu_var_info um__limiter_vars[] = {
-    {.name = {.str = "Min"},
-     .offset_bytes = offsetof(um__limiter, min),
-     .type = UMUGU_TYPE_FLOAT,
-     .count = 1,
-     .misc.range.min = -5.0f,
-     .misc.range.max = 5.0f},
-    {.name = {.str = "Max"},
-     .offset_bytes = offsetof(um__limiter, max),
-     .type = UMUGU_TYPE_FLOAT,
-     .count = 1,
-     .misc.range.min = -5.0f,
-     .misc.range.max = 5.0f}};
-
 static inline int um__init(umugu_node *node) {
     node->pipe_out_type = UMUGU_PIPE_SIGNAL;
     node->pipe_out_ready = 0;

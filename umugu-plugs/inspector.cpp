@@ -1,17 +1,20 @@
 #include <umugu/umugu.h>
 
 #include <assert.h>
+#include <string.h>
+
+constexpr int32_t ValuesBufferSize = 2048;
 
 struct Inspector {
   umugu_node Node;
   float *OutValues;
   int32_t It;
   int32_t Padding;
-  float *Values;
-  int32_t Size;
+  int32_t Size = ValuesBufferSize;
   int32_t Stride;
   int32_t Offset;
   int32_t Pause;
+  float Values[ValuesBufferSize * UMUGU_CHANNELS * sizeof(float)];
 };
 
 static const umugu_var_info var_metadata[] = {
@@ -19,22 +22,26 @@ static const umugu_var_info var_metadata[] = {
      .offset_bytes = offsetof(Inspector, OutValues),
      .type = UMUGU_TYPE_PLOTLINE,
      .count = 2048,
-     .misc = {.range = {.min = 0, .max = 2048}}},
+     .flags = UMUGU_VAR_RDONLY,
+     .misc = {.rangei = {.min = 0, .max = 2048}}},
     {.name = {.str = "Stride"},
      .offset_bytes = offsetof(Inspector, Stride),
      .type = UMUGU_TYPE_INT32,
      .count = 1,
-     .misc = {.range = {.min = 1, .max = 1024}}},
+     .flags = UMUGU_VAR_NONE,
+     .misc = {.rangei = {.min = 1, .max = 1024}}},
     {.name = {.str = "Offset"},
      .offset_bytes = offsetof(Inspector, Offset),
      .type = UMUGU_TYPE_INT32,
      .count = 1,
-     .misc = {.range = {.min = 1, .max = 1024}}},
+     .flags = UMUGU_VAR_NONE,
+     .misc = {.rangei = {.min = 1, .max = 1024}}},
     {.name = {.str = "Pause"},
      .offset_bytes = offsetof(Inspector, Pause),
      .type = UMUGU_TYPE_BOOL,
      .count = 1,
-     .misc = {.range = {.min = 0, .max = 1}}},
+     .flags = UMUGU_VAR_NONE,
+     .misc = {.rangei = {.min = 0, .max = 1}}},
 };
 
 extern "C" const int32_t size = (int32_t)sizeof(Inspector);
@@ -48,12 +55,12 @@ static int Init(umugu_node *apNode) {
   Inspector *pSelf = (Inspector *)apNode;
   pSelf->It = 0;
   pSelf->Offset = 0;
-  pSelf->Stride = 2;
-  pSelf->Size = 2048;
+  pSelf->Stride = UMUGU_CHANNELS;
+  pSelf->Size = ValuesBufferSize;
   pSelf->Pause = false;
-  pSelf->Values = (float *)(*umugu_get_context()->alloc)(pSelf->Size * 2 * sizeof(float));
   pSelf->OutValues = pSelf->Values;
   apNode->pipe_out_ready = false;
+  memset(pSelf->Values, 0, sizeof(pSelf->Values));
   return UMUGU_SUCCESS;
 }
 

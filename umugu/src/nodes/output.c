@@ -3,14 +3,6 @@
 
 #include <assert.h>
 
-typedef struct {
-    umugu_node node;
-} um__output;
-
-const int32_t um__output_size = (int32_t)sizeof(um__output);
-const int32_t um__output_var_count = 0;
-const umugu_var_info um__output_vars[1];
-
 static inline int um__init(umugu_node *node) {
     node->pipe_out_type = UMUGU_PIPE_SIGNAL;
     node->pipe_out_ready = 0;

@@ -1,5 +1,6 @@
 #include "umugu.h"
 
+#define UMUGU_BUILTIN_NODES_DEFINITIONS
 #include "builtin_nodes.h"
 
 #include <assert.h>
@@ -14,9 +15,69 @@
 static umugu_ctx g_default_ctx; /* Relying on zero-init from static memory. */
 static umugu_ctx *g_ctx = &g_default_ctx;
 
-umugu_node_info g_builtin_nodes_info[UM__BUILTIN_NODES_COUNT];
+const umugu_node_info g_builtin_nodes_info[] = {
+    {.name = {.str = "Oscilloscope"},
+     .size_bytes = um__oscope_size,
+     .var_count = um__oscope_var_count,
+     .getfn = um__oscope_getfn,
+     .vars = um__oscope_vars,
+     .plug_handle = NULL},
+
+    {.name = {.str = "WavFilePlayer"},
+     .size_bytes = um__wavplayer_size,
+     .var_count = um__wavplayer_var_count,
+     .getfn = um__wavplayer_getfn,
+     .vars = um__wavplayer_vars,
+     .plug_handle = NULL},
+
+    {.name = {.str = "Mixer"},
+     .size_bytes = um__mixer_size,
+     .var_count = um__mixer_var_count,
+     .getfn = um__mixer_getfn,
+     .vars = um__mixer_vars,
+     .plug_handle = NULL},
+
+    {.name = {.str = "Amplitude"},
+     .size_bytes = um__amplitude_size,
+     .var_count = um__amplitude_var_count,
+     .getfn = um__amplitude_getfn,
+     .vars = um__amplitude_vars,
+     .plug_handle = NULL},
+
+    {.name = {.str = "Limiter"},
+     .size_bytes = um__limiter_size,
+     .var_count = um__limiter_var_count,
+     .getfn = um__limiter_getfn,
+     .vars = um__limiter_vars,
+     .plug_handle = NULL},
+
+    {.name = {.str = "ControlMidi"},
+     .size_bytes = um__ctrlmidi_size,
+     .var_count = um__ctrlmidi_var_count,
+     .getfn = um__ctrlmidi_getfn,
+     .vars = um__ctrlmidi_vars,
+     .plug_handle = NULL},
+
+    {.name = {.str = "Piano"},
+     .size_bytes = um__piano_size,
+     .var_count = um__piano_var_count,
+     .getfn = um__piano_getfn,
+     .vars = um__piano_vars,
+     .plug_handle = NULL},
+
+    {.name = {.str = "Output"},
+     .size_bytes = um__output_size,
+     .var_count = um__output_var_count,
+     .getfn = um__output_getfn,
+     .vars = um__output_vars,
+     .plug_handle = NULL},
+};
+
+static const size_t um__builtin_nodes_info_count =
+    UM__ARRAY_COUNT(g_builtin_nodes_info);
 
 static inline int um__node_info_builtin_load(void) {
+#if 0
     g_builtin_nodes_info[0] =
         (umugu_node_info){.name = {.str = "Oscilloscope"},
                           .size_bytes = um__oscope_size,
@@ -81,6 +142,7 @@ static inline int um__node_info_builtin_load(void) {
                           .vars = um__output_vars,
                           .plug_handle = NULL};
 
+#endif
     return UMUGU_SUCCESS;
 }
 
@@ -90,7 +152,7 @@ static inline int um__name_equals(const umugu_name *a, const umugu_name *b) {
 
 static inline const umugu_node_info *
 um__node_info_builtin_find(const umugu_name *name) {
-    for (int i = 0; i < UM__BUILTIN_NODES_COUNT; ++i) {
+    for (int i = 0; i < um__builtin_nodes_info_count; ++i) {
         if (!strncmp(g_builtin_nodes_info[i].name.str, name->str,
                      UMUGU_NAME_LEN)) {
             return g_builtin_nodes_info + i;
@@ -178,6 +240,15 @@ int umugu_produce_signal(void) {
 void umugu_set_context(umugu_ctx *new_ctx) { g_ctx = new_ctx; }
 
 umugu_ctx *umugu_get_context(void) { return g_ctx; }
+
+int umugu_set_arena(void *buffer, size_t bytes) {
+    g_ctx->arena.buffer = buffer;
+    g_ctx->arena.capacity = bytes;
+    g_ctx->arena.pers_next = buffer;
+    g_ctx->arena.temp_next = buffer;
+
+    return UMUGU_SUCCESS;
+}
 
 void *umugu_alloc_pers(size_t bytes) {
     umugu_mem_arena *mem = &g_ctx->arena;
