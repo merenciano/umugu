@@ -19,22 +19,9 @@
         - Doxygen.
         - Adapt to any wav config (mono, stereo, samples per sec, data size..)
         - File players for compressed formats.
-        - Think about separating node config/parameter data (the one that
-          controllers and UI modifies) from internal state (the one that
-          the signal processing thread modifies). It's nice to hace all the
-          node data together but I would like to have all the configurable
-          data of the pipeline grouped for better serialization (I'm importing
-          and exporting the whole chunk of pipeline data anyway but half of it
-          is useless state). Or maybe I should go all-in and serialize the
-          whole application state in order to make snapshots of any given
-          moment for debug/inspection... or mmap the whole context to a binary
-          file for easy autosaves.. or just memset and mask all the state and
-          padding data and feed it to any runtime compression algorithm.
-
         - Organize all the config and decide how it's done. File? Defines?
         - Change pointers with arena offsets in serialized structs (I want .bin
    compat between 32-64 bit systems).
-        - Get rid of heap allocations.
 */
 
 #ifndef __UMUGU_H__
@@ -58,8 +45,6 @@
 #ifndef UMUGU_CHANNELS
 #define UMUGU_CHANNELS 2
 #endif
-
-#define UMUGU_MAX_KEYS 64
 
 #ifndef UMUGU_NAME_LEN
 #define UMUGU_NAME_LEN 32
@@ -130,7 +115,6 @@ typedef struct {
     int32_t rate;     /* sample rate (samples per sec) */
     int16_t type;     /* type of each sample value */
     int16_t channels; /* number of channels, e.g. 2 for stereo */
-    int64_t capacity; /* max frame capacity (greater than count) */
 } umugu_signal;
 
 enum {
@@ -286,20 +270,13 @@ typedef struct {
      * WRITE: Umugu. */
     umugu_signal out_audio_signal;
 
-    /* Audio backend state.
-     * WRITE: Audio backends. */
-    int32_t audio_backend_ready;
-    int32_t audio_backend_stream_running;
+    int32_t running;
 
     /* Time gap (in seconds) between the stream callback call that
      * requests new signal data and the moment when the produced signal
      * will output the DAC.
      * WRITE: Audio backends. */
     double time_margin_sec;
-
-    /* Opaque ptr for storing the backend handles.
-     * WRITE: Audio backends. */
-    void *backend_handle;
 } umugu_io;
 
 typedef struct {
@@ -372,8 +349,6 @@ int umugu_node_dispatch(umugu_node *node, int fn);
  * Return a pointer to the node info in the context or NULL if not found. */
 const umugu_node_info *umugu_node_info_find(const umugu_name *name);
 
-const umugu_var_info *umugu_var_info_get(umugu_name node, int var_idx);
-
 /* Search the node name in the built-in nodes and add the node info to
  * the context. If there is no built-in node with that name, looks for
  * lib<node_name>.so in the rpath and plug it if found.
@@ -387,17 +362,6 @@ umugu_ctx *umugu_get_context(void);
 
 int umugu_node_print(umugu_node *node);
 int umugu_pipeline_print(void);
-
-/* Audio backend generic interface.
- * This functions are not implemented by libumugu.a but provide a generic
- * interface for backends. It is not strictly necessary for backend
- * implementations to implement this functions, but generic demos will
- * use them. */
-extern int umugu_audio_backend_init(void);
-extern int umugu_audio_backend_close(void);
-extern int umugu_audio_backend_play(int milliseconds);
-extern int umugu_audio_backend_start_stream(void);
-extern int umugu_audio_backend_stop_stream(void);
 
 #ifdef __cplusplus
 }

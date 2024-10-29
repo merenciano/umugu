@@ -1,8 +1,5 @@
 #include "UmuguMaker.h"
 
-#include "../../umugu/src/builtin_nodes.h" // TODO: Waveforms in public api
-#include "Utilities.h"
-
 #include <umugu/umugu.h>
 
 #include <imgui/backends/imgui_impl_opengl3.h>

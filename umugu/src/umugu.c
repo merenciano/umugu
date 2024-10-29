@@ -130,17 +130,6 @@ const umugu_node_info *umugu_node_info_load(const umugu_name *name) {
     return NULL;
 }
 
-const umugu_var_info *umugu_var_info_get(umugu_name node, int var_idx) {
-    assert(var_idx >= 0 && "Var index can not be negative.");
-    assert(var_idx < 128 && "Delete this assert if var_idx is correct.");
-    const umugu_node_info *info = umugu_node_info_find(&node);
-    if (!info) {
-        return NULL;
-    }
-
-    return &info->vars[var_idx];
-}
-
 int umugu_newframe(void) {
     for (int i = 0; i < g_ctx->pipeline.node_count; ++i) {
         g_ctx->pipeline.nodes[i]->out_pipe_ready = 0;
@@ -215,7 +204,6 @@ umugu_frame *umugu_get_temp_signal(umugu_signal *s) {
     assert(s && (frame_count > 0));
     s->frames = umugu_alloc_temp(frame_count * sizeof(umugu_frame));
     s->count = frame_count;
-    s->capacity = frame_count;
     return s->frames;
 }
 
@@ -260,7 +248,7 @@ void umugu_unplug(const umugu_name *name) {
     }
 }
 
-static inline void um__var_print(umugu_var_info *vi, void *node) {
+static inline void um__var_print(const umugu_var_info *vi, void *node) {
     void *var = (char *)node + vi->offset_bytes;
     switch (vi->type) {
     case UMUGU_TYPE_FLOAT:

@@ -2,15 +2,10 @@
 #define __UMUGU_STDOUT_H__
 
 /* Generic interface. */
-int umugu_audio_backend_init(void);
-int umugu_audio_backend_close(void);
 int umugu_audio_backend_play(int milliseconds);
-int umugu_audio_backend_start_stream(void);
-int umugu_audio_backend_stop_stream(void);
 
 #endif /* __UMUGU_STDOUT_H__ */
 
-#define UMUGU_STDOUT_IMPL
 #ifdef UMUGU_STDOUT_IMPL
 
 #include "umugu/umugu.h"
@@ -74,8 +69,7 @@ int umugu_audio_backend_play(int milliseconds) {
                                                   .count = frame_count,
                                                   .rate = UMUGU_SAMPLE_RATE,
                                                   .type = UMUGU_SAMPLE_TYPE,
-                                                  .channels = UMUGU_CHANNELS,
-                                                  .capacity = SAMPLE_COUNT};
+                                                  .channels = UMUGU_CHANNELS};
 
         umugu_newframe();
         for (int i = 0; i < ctx->pipeline.node_count; ++i) {
@@ -86,30 +80,6 @@ int umugu_audio_backend_play(int milliseconds) {
     }
 
     return UMUGU_SUCCESS;
-}
-
-int umugu_audio_backend_init(void) {
-    umugu_ctx *ctx = umugu_get_context();
-    ctx->io.audio_backend_ready = 1;
-    return UMUGU_SUCCESS;
-}
-
-int umugu_audio_backend_close(void) {
-    umugu_ctx *ctx = umugu_get_context();
-    ctx->io.audio_backend_ready = 0;
-    return UMUGU_SUCCESS;
-}
-
-int umugu_audio_backend_start_stream(void) {
-    umugu_ctx *ctx = umugu_get_context();
-    ctx->io.audio_backend_stream_running = 0;
-    return UMUGU_NOOP;
-}
-
-int umugu_audio_backend_stop_stream(void) {
-    umugu_ctx *ctx = umugu_get_context();
-    ctx->io.audio_backend_stream_running = 0;
-    return UMUGU_NOOP;
 }
 
 #endif /* UMUGU_STDOUT_IMPL */

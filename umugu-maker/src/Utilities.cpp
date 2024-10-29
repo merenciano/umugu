@@ -5,8 +5,6 @@
 #include <imgui/imgui.h>
 #include <imgui/implot.h>
 
-#include <stdio.h>
-
 namespace umumk {
 void DrawNodeWidgets(umugu_node *aNode) {
   const umugu_node_info &Info = umugu_get_context()->nodes_info[aNode->info_idx];
