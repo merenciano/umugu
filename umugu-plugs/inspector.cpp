@@ -20,9 +20,9 @@ struct Inspector {
 static const umugu_var_info var_metadata[] = {
     {.name = {.str = "Values"},
      .offset_bytes = offsetof(Inspector, OutValues),
-     .type = UMUGU_TYPE_PLOTLINE,
+     .type = UMUGU_TYPE_FLOAT,
      .count = 2048,
-     .flags = UMUGU_VAR_RDONLY,
+     .flags = UMUGU_VAR_RDONLY | UMUGU_VAR_PLOTLINE,
      .misc = {.rangei = {.min = 0, .max = 2048}}},
     {.name = {.str = "Stride"},
      .offset_bytes = offsetof(Inspector, Stride),
@@ -59,30 +59,30 @@ static int Init(umugu_node *apNode) {
   pSelf->Size = ValuesBufferSize;
   pSelf->Pause = false;
   pSelf->OutValues = pSelf->Values;
-  apNode->pipe_out_ready = false;
+  apNode->out_pipe_ready = false;
   memset(pSelf->Values, 0, sizeof(pSelf->Values));
   return UMUGU_SUCCESS;
 }
 
 static int Process(umugu_node *apNode) {
-  if (apNode->pipe_out_ready) {
+  if (apNode->out_pipe_ready) {
     return UMUGU_NOOP;
   }
 
   auto pCtx = umugu_get_context();
   Inspector *pSelf = (Inspector *)apNode;
-  auto pInputNode = pCtx->pipeline.nodes[apNode->pipe_in_node_idx];
-  if (!pInputNode->pipe_out_ready) {
+  auto pInputNode = pCtx->pipeline.nodes[apNode->in_pipe_node];
+  if (!pInputNode->out_pipe_ready) {
     umugu_node_dispatch(apNode, UMUGU_FN_PROCESS);
-    assert(pInputNode->pipe_out_ready);
+    assert(pInputNode->out_pipe_ready);
   }
 
   if (pSelf->Pause) {
     return UMUGU_SUCCESS;
   }
 
-  float *pInputFloat = (float *)pInputNode->pipe_out.frames;
-  const int Count = pInputNode->pipe_out.count;
+  float *pInputFloat = (float *)pInputNode->out_pipe.frames;
+  const int Count = pInputNode->out_pipe.count;
   for (int i = pSelf->Offset; i < Count * 2; i += pSelf->Stride) {
     pSelf->Values[pSelf->It] = pInputFloat[i];
     pSelf->Values[pSelf->It + pSelf->Size] = pInputFloat[i];
@@ -92,8 +92,8 @@ static int Process(umugu_node *apNode) {
     }
   }
   pSelf->OutValues = pSelf->Values + pSelf->It;
-  apNode->pipe_out = pInputNode->pipe_out;
-  apNode->pipe_out_ready = true;
+  apNode->out_pipe = pInputNode->out_pipe;
+  apNode->out_pipe_ready = true;
   return UMUGU_SUCCESS;
 }
 

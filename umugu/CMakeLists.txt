@@ -75,12 +75,6 @@ target_link_libraries(player-portaudio PRIVATE
     portaudio
 )
 
-add_executable(umidi)
-
-target_sources(umidi PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/test/umugutest_midi.c
-)
-
 add_executable(player-stdout)
 
 target_sources(player-stdout PRIVATE

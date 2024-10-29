@@ -13,14 +13,20 @@ static char arena_buffer[ARENA_SIZE];
 int main(int argc, char **argv) {
     umugu_set_arena(arena_buffer, ARENA_SIZE);
     umugu_get_context()->io.log = printf;
-    umugu_init();
 
     if (argc == 2) {
         umugu_import_pipeline(argv[1]);
     } else {
-        umugu_generate_test_pipeline("../assets/pipeines/default.bin");
-        umugu_import_pipeline("../assets/pipelines/default.bin");
+        const umugu_name nodes[] = {
+            {.str = "WavFilePlayer"}, /* {.str = "ControlMidi"}, */
+            /* {.str = "Piano"},    */ {.str = "Mixer"},
+            {.str = "Amplitude"},
+            {.str = "Limiter"},
+            {.str = "Output"}};
+        umugu_pipeline_generate(&nodes[0], sizeof(nodes) / sizeof(*nodes));
     }
+
+    umugu_pipeline_print();
 
     umugu_audio_backend_init();
     umugu_audio_backend_start_stream();
@@ -28,7 +34,6 @@ int main(int argc, char **argv) {
     getchar();
 
     umugu_audio_backend_stop_stream();
-    umugu_close();
 
     return 0;
 }

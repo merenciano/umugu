@@ -4,33 +4,33 @@
 #include <assert.h>
 
 static inline int um__init(umugu_node *node) {
-    node->pipe_out_type = UMUGU_PIPE_SIGNAL;
-    node->pipe_out_ready = 0;
+    node->out_pipe_type = UMUGU_PIPE_SIGNAL;
+    node->out_pipe_ready = 0;
     return UMUGU_SUCCESS;
 }
 
 static inline int um__process(umugu_node *node) {
-    if (node->pipe_out_ready) {
+    if (node->out_pipe_ready) {
         return UMUGU_NOOP;
     }
 
     umugu_ctx *ctx = umugu_get_context();
-    umugu_node *input = ctx->pipeline.nodes[node->pipe_in_node_idx];
-    if (!input->pipe_out_ready) {
+    umugu_node *input = ctx->pipeline.nodes[node->in_pipe_node];
+    if (!input->out_pipe_ready) {
         umugu_node_dispatch(input, UMUGU_FN_PROCESS);
-        assert(input->pipe_out_ready);
+        assert(input->out_pipe_ready);
     }
 
-    node->pipe_out = ctx->io.out_audio_signal;
-    for (int i = 0; i < node->pipe_out.count; ++i) {
-        node->pipe_out.frames[i].left = input->pipe_out.frames[i].left;
-        node->pipe_out.frames[i].right = input->pipe_out.frames[i].right;
+    node->out_pipe = ctx->io.out_audio_signal;
+    for (int i = 0; i < node->out_pipe.count; ++i) {
+        node->out_pipe.frames[i].left = input->out_pipe.frames[i].left;
+        node->out_pipe.frames[i].right = input->out_pipe.frames[i].right;
     }
 
     /* TODO: SampleRate and type conversions if the output
         signal is different. */
 
-    node->pipe_out_ready = 1;
+    node->out_pipe_ready = 1;
     return UMUGU_SUCCESS;
 }
 

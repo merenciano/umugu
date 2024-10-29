@@ -118,7 +118,6 @@ UmuguMaker::UmuguMaker() {
   umugu_set_arena(malloc(Size), Size);
   umugu_get_context()->io.log = printf;
 
-  umugu_init();
   umugu_audio_backend_init();
   umugu_import_pipeline("../assets/pipelines/default.bin");
 
@@ -138,7 +137,6 @@ UmuguMaker::~UmuguMaker() {
 
   umugu_audio_backend_stop_stream();
   umugu_audio_backend_close();
-  umugu_close();
 }
 
 bool UmuguMaker::Update() {

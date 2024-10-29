@@ -19,12 +19,14 @@ enum umugu_midi_message_ids {
 
 static int um__pm_initialized = 0;
 
-static inline int umugu_midi_event_status_channel(int msg) { return msg & 0xF; }
+// static inline int umugu_midi_event_status_channel(int msg) { return msg &
+// 0xF; }
 static inline int umugu_midi_event_status_status(int msg) { return msg & 0xF0; }
-static inline int umugu_midi_event_byte0(int msg) { return msg & 0xFF; }
+// static inline int umugu_midi_event_byte0(int msg) { return msg & 0xFF; }
 static inline int umugu_midi_event_byte1(int msg) { return (msg >> 8) & 0xFF; }
 static inline int umugu_midi_event_byte2(int msg) { return (msg >> 16) & 0xFF; }
-static inline int umugu_midi_event_byte3(int msg) { return (msg >> 24) & 0xFF; }
+// static inline int umugu_midi_event_byte3(int msg) { return (msg >> 24) &
+// 0xFF; }
 
 static inline int umugu_midi_process(umugu_ctrl *ctrl, int32_t msg) {
     int status = umugu_midi_event_status_status(msg);
@@ -155,8 +157,8 @@ static inline int umugu_midi_process(umugu_ctrl *ctrl, int32_t msg) {
 static inline int um__init(umugu_node *node) {
     umugu_ctx *ctx = umugu_get_context();
     um__ctrlmidi *self = (void *)node;
-    node->pipe_out_type = UMUGU_PIPE_CONTROL;
-    node->pipe_out_ready = 0;
+    node->out_pipe_type = UMUGU_PIPE_CONTROL;
+    node->out_pipe_ready = 0;
 
     if (!um__pm_initialized) {
         Pm_Initialize();
@@ -191,8 +193,18 @@ static inline int um__init(umugu_node *node) {
     return UMUGU_SUCCESS;
 }
 
+static inline int um__defaults(umugu_node *node) {
+    um__ctrlmidi *self = (void *)node;
+    self->node.in_pipe_node = UMUGU_BADIDX;
+    strncpy(self->dev_name, "Minilab3 Minilab3 MIDI",
+            UMUGU_CTRLMIDI_DEVICE_NAME_MAXLEN);
+    self->dev_idx = UMUGU_BADIDX;
+    self->stream = NULL;
+    return UMUGU_SUCCESS;
+}
+
 static inline int um__process(umugu_node *node) {
-    if (node->pipe_out_ready) {
+    if (node->out_pipe_ready) {
         return UMUGU_NOOP;
     }
 
@@ -214,7 +226,7 @@ static inline int um__process(umugu_node *node) {
         umugu_midi_process(&ctx->pipeline.control, events[i].message);
     }
 
-    node->pipe_out_ready = 1;
+    node->out_pipe_ready = 1;
 
     return UMUGU_SUCCESS;
 }
@@ -238,6 +250,8 @@ umugu_node_fn um__ctrlmidi_getfn(umugu_fn fn) {
     switch (fn) {
     case UMUGU_FN_INIT:
         return um__init;
+    case UMUGU_FN_DEFAULTS:
+        return um__defaults;
     case UMUGU_FN_PROCESS:
         return um__process;
     case UMUGU_FN_RELEASE:

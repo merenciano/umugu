@@ -40,8 +40,8 @@ static inline float um__inv_range(int type) {
 static inline int um__init(umugu_node *node) {
     umugu_ctx *ctx = umugu_get_context();
     um__wavplayer *self = (um__wavplayer *)node;
-    node->pipe_out_ready = 0;
-    node->pipe_out_type = UMUGU_PIPE_SIGNAL;
+    node->out_pipe_ready = 0;
+    node->out_pipe_type = UMUGU_PIPE_SIGNAL;
 
     self->file_handle = fopen(self->filename, "rb");
     if (!self->file_handle) {
@@ -74,9 +74,16 @@ static inline int um__init(umugu_node *node) {
     return UMUGU_SUCCESS;
 }
 
+static inline int um__defaults(umugu_node *node) {
+    um__wavplayer *self = (void *)node;
+    self->node.in_pipe_node = UMUGU_BADIDX;
+    strncpy(self->filename, "../assets/audio/pirri.wav", 64);
+    return UMUGU_SUCCESS;
+}
+
 /* TODO: Implement this node type mmapping the wav. */
 static inline int um__process(umugu_node *node) {
-    if (node->pipe_out_ready) {
+    if (node->out_pipe_ready) {
         return UMUGU_NOOP;
     }
 
@@ -98,9 +105,9 @@ static inline int um__process(umugu_node *node) {
         return UMUGU_ERR_STREAM;
     }
 
-    umugu_frame *out = umugu_get_temp_signal(&node->pipe_out);
+    umugu_frame *out = umugu_get_temp_signal(&node->out_pipe);
     int16_t *it = (int16_t *)(src);
-    for (int i = 0; i < node->pipe_out.count; ++i) {
+    for (int i = 0; i < node->out_pipe.count; ++i) {
         if (self->channels == 2) {
             out[i].left = *it++ * inv_range;
             out[i].right = *it++ * inv_range;
@@ -110,7 +117,7 @@ static inline int um__process(umugu_node *node) {
         }
     }
 
-    node->pipe_out_ready = 1;
+    node->out_pipe_ready = 1;
 
     return UMUGU_SUCCESS;
 }
@@ -121,12 +128,15 @@ static int um__destroy(umugu_node *node) {
         fclose(self->file_handle);
         self->file_handle = NULL;
     }
+    return UMUGU_SUCCESS;
 }
 
 umugu_node_fn um__wavplayer_getfn(umugu_fn fn) {
     switch (fn) {
     case UMUGU_FN_INIT:
         return um__init;
+    case UMUGU_FN_DEFAULTS:
+        return um__defaults;
     case UMUGU_FN_PROCESS:
         return um__process;
     case UMUGU_FN_RELEASE:

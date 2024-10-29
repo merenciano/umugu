@@ -59,14 +59,14 @@ static inline umugu_frame Distortion(umugu_frame aInput, Acid &aSelf) {
 }
 
 static int Process(umugu_node *apNode) {
-  if (apNode->pipe_out_ready) {
+  if (apNode->out_pipe_ready) {
     return UMUGU_NOOP;
   }
 
   Acid *pSelf = (Acid *)apNode;
 
-  auto pOut = umugu_get_temp_signal(&apNode->pipe_out);
-  const int Count = apNode->pipe_out.count;
+  auto pOut = umugu_get_temp_signal(&apNode->out_pipe);
+  const int Count = apNode->out_pipe.count;
   // float Fb = pSelf->Resonance + pSelf->Resonance / (1.0f - pSelf->Cutoff);
 
   for (int i = 0; i < Count; i++) {

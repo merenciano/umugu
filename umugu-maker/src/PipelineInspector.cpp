@@ -19,7 +19,7 @@ void PipelineInspector::Show() {
 }
 
 void PipelineInspector::NodeWidgets(umugu_node *apNode) {
-  const umugu_node_info *pInfo = umugu_node_info_find(&apNode->name);
+  const umugu_node_info *pInfo = &umugu_get_context()->nodes_info[apNode->info_idx];
   if (!pInfo) {
     printf("Node info not found.\n");
     return;

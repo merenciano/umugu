@@ -58,7 +58,7 @@ void um__write_wav_header(size_t wav_data_size) {
 }
 
 int umugu_audio_backend_play(int milliseconds) {
-    enum { SAMPLE_COUNT = UMUGU_DEFAULT_SAMPLE_CAPACITY };
+    enum { SAMPLE_COUNT = 2048 };
     umugu_frame frames[SAMPLE_COUNT];
     umugu_ctx *ctx = umugu_get_context();
 

@@ -44,7 +44,7 @@
 #include <stdint.h>
 
 #define UMUGU_VERSION_MAJOR 0
-#define UMUGU_VERSION_MINOR 4
+#define UMUGU_VERSION_MINOR 5
 #define UMUGU_VERSION_PATCH 0
 
 #ifndef UMUGU_SAMPLE_RATE
@@ -67,10 +67,6 @@
 
 #ifndef UMUGU_PATH_LEN
 #define UMUGU_PATH_LEN 64
-#endif
-
-#ifndef UMUGU_DEFAULT_SAMPLE_CAPACITY
-#define UMUGU_DEFAULT_SAMPLE_CAPACITY 1024
 #endif
 
 #ifndef UMUGU_DEFAULT_NODE_INFO_CAPACITY
@@ -103,6 +99,7 @@ enum {
     UMUGU_ERR_STREAM,
     UMUGU_ERR_AUDIO_BACKEND,
     UMUGU_ERR_MIDI,
+    UMUGU_ERR_NULL,
     UMUGU_ERR,
 };
 
@@ -150,7 +147,7 @@ enum {
 extern const float umugu_waveform_lut[UMUGU_WAVEFORM_COUNT][UMUGU_SAMPLE_RATE];
 
 /* Node virtual functions. */
-enum { UMUGU_FN_INIT, UMUGU_FN_PROCESS, UMUGU_FN_RELEASE };
+enum { UMUGU_FN_INIT, UMUGU_FN_DEFAULTS, UMUGU_FN_PROCESS, UMUGU_FN_RELEASE };
 typedef int umugu_fn;
 
 /* Text struct for name handling. The whole array is taken into account
@@ -176,7 +173,6 @@ enum umugu_var_type_e {
     UMUGU_TYPE_FLOAT,
     UMUGU_TYPE_INT64,
     UMUGU_TYPE_INT8,
-    UMUGU_TYPE_PLOTLINE, /* TODO: Delete this. And come with a better idea. */
     UMUGU_TYPE_TEXT,
     UMUGU_TYPE_BOOL,
     UMUGU_TYPE_COUNT
@@ -185,6 +181,8 @@ enum umugu_var_type_e {
 enum umugu_var_flags {
     UMUGU_VAR_NONE = 0,
     UMUGU_VAR_RDONLY = 1,
+    UMUGU_VAR_RANGE = 1 << 1,
+    UMUGU_VAR_PLOTLINE = 1 << 2,
 };
 
 /* Node field descriptor with type metadata for external node communication
@@ -213,13 +211,11 @@ typedef struct {
  * data member of the struct. The name is enough for obtaining its associated
  * metadata (see: umugu_node_info) and then the offsets to the interface. */
 typedef struct umugu_node {
-    umugu_name name; /* TODO: Change to node_info_idx */
-    int16_t node_info_idx;
-    int16_t pipe_in_node_idx;
-    int8_t pipe_in_channel;
-    int8_t pipe_out_type;
-    int8_t pipe_out_ready;
-    umugu_signal pipe_out;
+    int16_t info_idx;
+    int16_t in_pipe_node;
+    int8_t out_pipe_type;
+    int8_t out_pipe_ready;
+    umugu_signal out_pipe;
 } umugu_node;
 
 typedef int (*umugu_node_fn)(umugu_node *);
@@ -262,7 +258,7 @@ enum umugu_ctrl_flags {
 typedef struct {
     int16_t ctrl[UMUGU_CTRL_COUNT];
     int8_t sound[UMUGU_CTRL_SOUND_COUNT];
-    int8_t notes[128];
+    int8_t notes[UMUGU_NOTE_COUNT];
     int32_t flags;
     int16_t pitch;
     int16_t volume;
@@ -334,11 +330,6 @@ typedef struct umugu_ctx {
     umugu_io io;
 } umugu_ctx;
 
-/* Internal initialization. This function should be called before any other. */
-int umugu_init(void);
-/* Releases resources and closes streams. */
-int umugu_close(void);
-
 int umugu_newframe(void);
 
 /* Updates the audio output signal.
@@ -347,9 +338,10 @@ int umugu_newframe(void);
 int umugu_produce_signal(void);
 
 /* Export the current context's pipeline to binary data.
+ * If ctx param is NULL, umugu_get_context() will be used.
  * Return UMUGU_SUCCESS if saved successfuly or UMUGU_ERR_FILE if file open
  * fails. */
-int umugu_export_pipeline(const char *filename);
+int umugu_export_pipeline(const char *filename, umugu_ctx *ctx);
 
 /* Import the binary file as the current context's pipeline.
  * Return UMUGU_SUCCESS if loaded successfuly, UMUGU_ERR_FILE if can not open
@@ -357,7 +349,13 @@ int umugu_export_pipeline(const char *filename);
  * UMUGU_ERR_MEM if the allocation of the pipeline buffer fails. */
 int umugu_import_pipeline(const char *filename);
 
-int umugu_generate_test_pipeline(const char *filename);
+/**
+ * Initializes the current context's pipeline using the given names and default
+ * values.
+ * @param node_names Array of the desired node types.
+ * @param node_count Number of names in the node_names array.
+ */
+int umugu_pipeline_generate(const umugu_name *node_names, int node_count);
 
 /* Search the file lib<name>.so in the rpath and load it if found.
  * Return the index of the context's node infos array where it has been copied.
@@ -386,6 +384,9 @@ const umugu_node_info *umugu_node_info_load(const umugu_name *name);
 /* Active context instance manipulation. */
 void umugu_set_context(umugu_ctx *new_ctx);
 umugu_ctx *umugu_get_context(void);
+
+int umugu_node_print(umugu_node *node);
+int umugu_pipeline_print(void);
 
 /* Audio backend generic interface.
  * This functions are not implemented by libumugu.a but provide a generic

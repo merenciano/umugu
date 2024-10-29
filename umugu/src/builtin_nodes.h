@@ -76,11 +76,11 @@ extern const int32_t um__mixer_var_count;
 extern umugu_node_fn um__mixer_getfn(umugu_fn fn);
 
 /* Control midi - umugu/src/nodes/control_midi.c */
+#define UMUGU_CTRLMIDI_DEVICE_NAME_MAXLEN 128
 typedef struct {
     umugu_node node;
-    char dev_name[128];
+    char dev_name[UMUGU_CTRLMIDI_DEVICE_NAME_MAXLEN];
     int32_t dev_idx;
-    int8_t channel;
     void *stream;
 } um__ctrlmidi;
 
@@ -223,13 +223,7 @@ const umugu_var_info um__ctrlmidi_vars[] = {
     {.name = {.str = "Device"},
      .offset_bytes = offsetof(um__ctrlmidi, dev_name),
      .type = UMUGU_TYPE_TEXT,
-     .count = 128},
-    {.name = {.str = "MIDI channel"},
-     .offset_bytes = offsetof(um__ctrlmidi, channel),
-     .type = UMUGU_TYPE_INT8,
-     .count = 1,
-     .misc.rangei.min = 0,
-     .misc.rangei.max = 16}};
+     .count = UMUGU_CTRLMIDI_DEVICE_NAME_MAXLEN}};
 const int32_t um__ctrlmidi_size = (int32_t)sizeof(um__ctrlmidi);
 const int32_t um__ctrlmidi_var_count = UM__ARRAY_COUNT(um__ctrlmidi_vars);
 
@@ -244,12 +238,13 @@ const int32_t um__piano_size = (int32_t)sizeof(um__piano);
 const int32_t um__piano_var_count = UM__ARRAY_COUNT(um__piano_vars);
 
 const umugu_var_info um__output_vars[] = {
-    {.name = {.str = "Input channel"},
-     .offset_bytes = offsetof(umugu_node, pipe_in_channel),
-     .type = UMUGU_TYPE_INT8,
-     .count = 1,
-     .misc.rangei.min = 0,
-     .misc.rangei.max = UMUGU_CHANNELS}};
+    {.name = {.str = "Input node"},
+     .offset_bytes = offsetof(umugu_node, in_pipe_node),
+     .type = UMUGU_TYPE_INT16,
+     .count = 0,
+     .flags = UMUGU_VAR_RDONLY,
+     .misc.rangei.min = -1,
+     .misc.rangei.max = -1}};
 const int32_t um__output_size = (int32_t)sizeof(um__output);
 const int32_t um__output_var_count = UM__ARRAY_COUNT(um__output_vars);
 
