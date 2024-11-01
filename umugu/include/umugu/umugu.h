@@ -7,6 +7,7 @@
     TODO(Input):
         - Support different variable types and arrays (count).
     TODO:
+        - Rename in symbols: var -> attribute
         - Make it work using int16 or even uint8, instead of float32. I want
           this to work on a ESP32.
         - Simple and performant hash for umugu_name to be used as a key in
@@ -17,11 +18,9 @@
         - Sanitize build config.
         - Profiling build config.
         - Doxygen.
-        - Adapt to any wav config (mono, stereo, samples per sec, data size..)
+        - Sample rate conversions.
         - File players for compressed formats.
         - Organize all the config and decide how it's done. File? Defines?
-        - Change pointers with arena offsets in serialized structs (I want .bin
-   compat between 32-64 bit systems).
 */
 
 #ifndef __UMUGU_H__
@@ -31,19 +30,11 @@
 #include <stdint.h>
 
 #define UMUGU_VERSION_MAJOR 0
-#define UMUGU_VERSION_MINOR 5
+#define UMUGU_VERSION_MINOR 6
 #define UMUGU_VERSION_PATCH 0
 
 #ifndef UMUGU_SAMPLE_RATE
 #define UMUGU_SAMPLE_RATE 48000
-#endif
-
-#ifndef UMUGU_SAMPLE_TYPE
-#define UMUGU_SAMPLE_TYPE UMUGU_TYPE_FLOAT
-#endif
-
-#ifndef UMUGU_CHANNELS
-#define UMUGU_CHANNELS 2
 #endif
 
 #ifndef UMUGU_NAME_LEN
@@ -88,34 +79,46 @@ enum {
     UMUGU_ERR,
 };
 
-enum { UMUGU_PIPE_SIGNAL, UMUGU_PIPE_CONTROL };
+enum {
+    UMUGU_SIGNAL_ENABLED = 0x0001,
+    UMUGU_SIGNAL_INTERLEAVED = 0x0002,
+};
 
 /* Default sample type for the audio pipeline. This type will be used for
  * representing the amplitude (wave) values of an audio signal.
  * In umugu_signal and other data structs is represented as UMUGU_TYPE_FLOAT. */
 typedef float umugu_sample;
 
-/* This struct represent the state of a signal at one specific point in time,
- * i.e. the sample value of each active channel.
+/**
+ * Audio signal for internal usage (fixed format that pipeline nodes use).
+ * @note For I/O audio signals @see umugu_generic_signal.
  */
-typedef struct {
-    /* TODO: Should I care for multi-channel? If the answer
-       is 'yes', fix it as soon as possible. */
-    umugu_sample left;
-    umugu_sample right; /* TODO: umugu_sample[UMUGU_CHANNELS]; */
-} umugu_frame;
+typedef struct umugu_signal {
+    /**
+     * Buffer for storing the sample values of the signal.
+     * Expected buffer capacity calculation:
+     * @code{.c}
+     * size_t Capacity = frames * channels * sizeof(umugu_sample);
+     * @endcode
+     * @note The channel samples are not interleaved.
+     */
+    umugu_sample *samples;
+    int32_t count;    /** Number of sample values per channel, i.e. frames. */
+    int32_t channels; /** Number of channels in the signal. */
+} umugu_signal;
 
-/* Audio signal. It can be a whole song or a small chunk for the output
+/* Generic audio signal. It can be a whole song or a small chunk for the output
  * stream, or a buffer for visual debugging by plotting its frames.
  * This struct also contains all the required data to play the audio
  * correctly or convert the signal to another format. */
-typedef struct {
-    umugu_frame *frames;
-    int64_t count;    /* number of frames in the signal */
-    int32_t rate;     /* sample rate (samples per sec) */
-    int16_t type;     /* type of each sample value */
-    int16_t channels; /* number of channels, e.g. 2 for stereo */
-} umugu_signal;
+typedef struct umugu_generic_signal {
+    void *sample_data;
+    int32_t count;    /* number of samples per channel (frames) in the signal */
+    int32_t channels; /* number of channels, e.g. 2 for stereo */
+    int32_t rate;     /* samples per sec */
+    int16_t type;     /* sample data type, UMUGU_TYPE_ */
+    int16_t flags;    /* config and status, UMUGU_SIGNAL_  */
+} umugu_generic_signal;
 
 enum {
     UMUGU_WAVEFORM_SINE = 0,
@@ -141,7 +144,7 @@ typedef struct {
     char str[UMUGU_NAME_LEN];
 } umugu_name;
 
-enum umugu_var_type_e {
+enum umugu_types_e {
     UMUGU_TYPE_BIT0 = 0,
     UMUGU_TYPE_BIT1,
     UMUGU_TYPE_BIT2,
@@ -162,11 +165,12 @@ enum umugu_var_type_e {
     UMUGU_TYPE_COUNT
 };
 
-enum umugu_var_flags {
+enum umugu_var_flags_e {
     UMUGU_VAR_NONE = 0,
     UMUGU_VAR_RDONLY = 1,
     UMUGU_VAR_RANGE = 1 << 1,
     UMUGU_VAR_PLOTLINE = 1 << 2,
+    UMUGU_VAR_DEBUG = 1 << 3,
 };
 
 /* Node field descriptor with type metadata for external node communication
@@ -176,7 +180,7 @@ enum umugu_var_flags {
 typedef struct {
     umugu_name name;
     int16_t offset_bytes; /* from struct's start */
-    int16_t type;         /* enum umugu_var_type_e */
+    int16_t type;         /* enum umugu_types_e */
     int32_t count;        /* number of elements i.e. array */
     int32_t flags;
     union {
@@ -197,8 +201,8 @@ typedef struct {
 typedef struct umugu_node {
     int16_t info_idx;
     int16_t in_pipe_node;
-    int8_t out_pipe_type;
-    int8_t out_pipe_ready;
+    int8_t in_pipe_channel;
+    int8_t padding[3];
     umugu_signal out_pipe;
 } umugu_node;
 
@@ -264,19 +268,15 @@ typedef struct {
 typedef struct {
     int (*log)(const char *fmt, ...);
 
+    umugu_generic_signal in_audio;
+
     /* The primary output of the library. Its contents (if any) are the next
      * samples to be played by the audio backend. This signal is the result
      * of the last umugu_produce_signal call.
      * WRITE: Umugu. */
-    umugu_signal out_audio_signal;
-
-    int32_t running;
-
-    /* Time gap (in seconds) between the stream callback call that
-     * requests new signal data and the moment when the produced signal
-     * will output the DAC.
-     * WRITE: Audio backends. */
-    double time_margin_sec;
+    umugu_generic_signal out_audio;
+    void *user_data;
+    void *backend_data;
 } umugu_io;
 
 typedef struct {
@@ -291,9 +291,45 @@ typedef struct {
  * until another one is assigned or program termination.
  */
 int umugu_set_arena(void *buffer, size_t bytes);
+
+/**
+ * Allocates the desired amount of bytes from the arena. The allocated buffer
+ * can not be released and will be valid until the execution ends. More
+ * permanent memory allocated means less memory available for the temporal
+ * memory buffer. This allocation function should be used at initialization
+ * time, since any permanent allocation done after starting allocating temporal
+ * memory will overwrite the temporal buffer space without taking any care of
+ * the stored data.
+ * @param bytes Desired allocation size in bytes.
+ * @return Pointer to the start of the allocated buffer.
+ */
 void *umugu_alloc_pers(size_t bytes);
+
+/**
+ * Allocated the desired amount of bytes from the arena. The allocated buffer
+ * will be 'released' automatically when subsequent temporal allocations fill
+ * the capacity of the temporal memory buffer and the allocated memory gets
+ * overwritten. If that happens before the overwritten data gets obsolete, it
+ * is considered a bug since a bigger buffer sould have been assigned to the
+ * arena, @see umugu_set_arena.
+ * @note Think about the temporary memory as a circular (or ring) buffer
+ * that uses the remaining memory of the arena after the permanent allocations,
+ * i.e. arena_capacity - persistent_allocations.
+ * @param bytes Desired allocation size in bytes.
+ * @return Pointer to the start of the allocated buffer.
+ */
 void *umugu_alloc_temp(size_t bytes);
-umugu_frame *umugu_get_temp_signal(umugu_signal *s);
+
+/**
+ * Allocates a large enough buffer for the signal depending on the output audio
+ * signal of the umugu_io.
+ * @param signal Pointer to a signal lvalue owned by the caller. The allocated
+ * buffer will be assigned to that signal's sample_data.
+ * @return A convenience pointer to the signal's allocated sample buffer. It is
+ * the same as signal->sample_data after this call.
+ */
+umugu_sample *umugu_alloc_signal_buffer(umugu_signal *signal);
+void *umugu_get_temp_generic_signal(umugu_generic_signal *signal);
 
 typedef struct umugu_ctx {
     umugu_pipeline pipeline;
@@ -359,9 +395,6 @@ const umugu_node_info *umugu_node_info_load(const umugu_name *name);
 /* Active context instance manipulation. */
 void umugu_set_context(umugu_ctx *new_ctx);
 umugu_ctx *umugu_get_context(void);
-
-int umugu_node_print(umugu_node *node);
-int umugu_pipeline_print(void);
 
 #ifdef __cplusplus
 }

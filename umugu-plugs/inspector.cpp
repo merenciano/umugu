@@ -14,7 +14,7 @@ struct Inspector {
   int32_t Stride;
   int32_t Offset;
   int32_t Pause;
-  float Values[ValuesBufferSize * UMUGU_CHANNELS * sizeof(float)];
+  float Values[ValuesBufferSize * 2 * sizeof(float)];
 };
 
 static const umugu_var_info var_metadata[] = {
@@ -55,33 +55,33 @@ static int Init(umugu_node *apNode) {
   Inspector *pSelf = (Inspector *)apNode;
   pSelf->It = 0;
   pSelf->Offset = 0;
-  pSelf->Stride = UMUGU_CHANNELS;
+  pSelf->Stride = 2;
   pSelf->Size = ValuesBufferSize;
   pSelf->Pause = false;
   pSelf->OutValues = pSelf->Values;
-  apNode->out_pipe_ready = false;
+  apNode->out_pipe.samples = NULL;
   memset(pSelf->Values, 0, sizeof(pSelf->Values));
   return UMUGU_SUCCESS;
 }
 
 static int Process(umugu_node *apNode) {
-  if (apNode->out_pipe_ready) {
+  if (apNode->out_pipe.samples) {
     return UMUGU_NOOP;
   }
 
   auto pCtx = umugu_get_context();
   Inspector *pSelf = (Inspector *)apNode;
   auto pInputNode = pCtx->pipeline.nodes[apNode->in_pipe_node];
-  if (!pInputNode->out_pipe_ready) {
+  if (!pInputNode->out_pipe.samples) {
     umugu_node_dispatch(apNode, UMUGU_FN_PROCESS);
-    assert(pInputNode->out_pipe_ready);
+    assert(pInputNode->out_pipe.samples);
   }
 
   if (pSelf->Pause) {
     return UMUGU_SUCCESS;
   }
 
-  float *pInputFloat = (float *)pInputNode->out_pipe.frames;
+  float *pInputFloat = (float *)pInputNode->out_pipe.samples;
   const int Count = pInputNode->out_pipe.count;
   for (int i = pSelf->Offset; i < Count * 2; i += pSelf->Stride) {
     pSelf->Values[pSelf->It] = pInputFloat[i];
@@ -93,7 +93,6 @@ static int Process(umugu_node *apNode) {
   }
   pSelf->OutValues = pSelf->Values + pSelf->It;
   apNode->out_pipe = pInputNode->out_pipe;
-  apNode->out_pipe_ready = true;
   return UMUGU_SUCCESS;
 }
 

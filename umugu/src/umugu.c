@@ -1,5 +1,7 @@
 #include "umugu.h"
 
+#include "umutils.h"
+
 #define UMUGU_BUILTIN_NODES_DEFINITIONS
 #include "builtin_nodes.h"
 
@@ -132,7 +134,7 @@ const umugu_node_info *umugu_node_info_load(const umugu_name *name) {
 
 int umugu_newframe(void) {
     for (int i = 0; i < g_ctx->pipeline.node_count; ++i) {
-        g_ctx->pipeline.nodes[i]->out_pipe_ready = 0;
+        g_ctx->pipeline.nodes[i]->out_pipe.samples = NULL;
     }
 
     return UMUGU_SUCCESS;
@@ -199,12 +201,24 @@ void *umugu_alloc_temp(size_t bytes) {
     return ret;
 }
 
-umugu_frame *umugu_get_temp_signal(umugu_signal *s) {
-    int frame_count = g_ctx->io.out_audio_signal.count;
-    assert(s && (frame_count > 0));
-    s->frames = umugu_alloc_temp(frame_count * sizeof(umugu_frame));
-    s->count = frame_count;
-    return s->frames;
+umugu_sample *umugu_alloc_signal_buffer(umugu_signal *s) {
+    assert(s);
+    assert(s->channels > 0 && s->channels < 32 &&
+           "Invalid number of channels.");
+    s->count = g_ctx->io.out_audio.count;
+    assert(s->count > 0);
+    s->samples =
+        umugu_alloc_temp(s->count * sizeof(umugu_sample) * s->channels);
+    return s->samples;
+}
+
+void *umugu_get_temp_generic_signal(umugu_generic_signal *s) {
+    assert(s);
+    s->count = g_ctx->io.out_audio.count;
+    assert(s->count > 0);
+    s->sample_data =
+        umugu_alloc_temp(s->count * umu_type_size(s->type) * s->channels);
+    return s->sample_data;
 }
 
 int umugu_node_dispatch(umugu_node *node, umugu_fn fn) {
@@ -246,64 +260,4 @@ void umugu_unplug(const umugu_name *name) {
         }
         memset(last, 0, sizeof(*last));
     }
-}
-
-static inline void um__var_print(const umugu_var_info *vi, void *node) {
-    void *var = (char *)node + vi->offset_bytes;
-    switch (vi->type) {
-    case UMUGU_TYPE_FLOAT:
-        g_ctx->io.log("%s: %f.\n", vi->name.str, *(float *)var);
-        break;
-    case UMUGU_TYPE_INT8:
-        g_ctx->io.log("%s: %d.\n", vi->name.str, *(int8_t *)var);
-        break;
-    case UMUGU_TYPE_INT16:
-        g_ctx->io.log("%s: %d.\n", vi->name.str, *(int16_t *)var);
-        break;
-    case UMUGU_TYPE_INT32:
-        g_ctx->io.log("%s: %d.\n", vi->name.str, *(int32_t *)var);
-        break;
-    case UMUGU_TYPE_INT64:
-        g_ctx->io.log("%s: %ld.\n", vi->name.str, *(int64_t *)var);
-        break;
-    case UMUGU_TYPE_UINT8:
-        g_ctx->io.log("%s: %u.\n", vi->name.str, *(uint8_t *)var);
-        break;
-    case UMUGU_TYPE_TEXT:
-        g_ctx->io.log("%s: %s.\n", vi->name.str, (const char *)var);
-        break;
-    case UMUGU_TYPE_BOOL:
-        g_ctx->io.log("%s: %s.\n", vi->name.str,
-                      *(int *)var ? "true" : "false");
-        break;
-    default:
-        g_ctx->io.log("%s: Unimplemented type %d.\n", vi->type);
-        break;
-    }
-}
-
-int umugu_node_print(umugu_node *node) {
-    int (*log)(const char *fmt, ...) = g_ctx->io.log;
-    const umugu_node_info *info = &g_ctx->nodes_info[node->info_idx];
-    log("Name: %s.\n", info->name.str);
-    log("In pipe: %d.\n", node->in_pipe_node);
-
-    log("Variables:\n");
-    for (int i = 0; i < info->var_count; ++i) {
-        um__var_print(info->vars + i, node);
-    }
-
-    return UMUGU_SUCCESS;
-}
-
-int umugu_pipeline_print(void) {
-    int (*log)(const char *fmt, ...) = g_ctx->io.log;
-    log("Pipeline nodes: %d.\n", g_ctx->pipeline.node_count);
-    log("-------------------------------------------\n");
-    for (int i = 0; i < g_ctx->pipeline.node_count; ++i) {
-        log("Node [%d] \n", i);
-        umugu_node_print(g_ctx->pipeline.nodes[i]);
-        log("-------------------------------------------\n");
-    }
-    return UMUGU_SUCCESS;
 }

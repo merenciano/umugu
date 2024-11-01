@@ -7,7 +7,6 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <string.h>
 
 #define UMUGU_HEAD_CODE 0x00454549
 #define UMUGU_FOOT_CODE 0x00555541

@@ -2,6 +2,7 @@
 
 #include "Utilities.h"
 
+#include <umugu/backends/umugu_portaudio19.h>
 #include <umugu/umugu.h>
 
 #include <imgui/imgui.h>
@@ -11,7 +12,8 @@
 namespace umumk {
 void PipelineInspector::Show() {
   ImGui::Begin("Pipeline graph");
-  ImGui::Text("Available time for the callback: %lf", umugu_get_context()->io.time_margin_sec);
+  ImGui::Text("Available time for the callback: %lf",
+              ((umugu_portaudio *)(umugu_get_context()->io.backend_data))->time_margin_sec);
   for (int i = 0; i < umugu_get_context()->pipeline.node_count; ++i) {
     NodeWidgets(umugu_get_context()->pipeline.nodes[i]);
   }

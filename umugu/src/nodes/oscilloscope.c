@@ -4,8 +4,9 @@
 #include <string.h>
 
 static inline int um__init(umugu_node *node) {
-    node->out_pipe_ready = 0;
-    node->out_pipe_type = UMUGU_PIPE_SIGNAL;
+    node->out_pipe.samples = NULL;
+    node->out_pipe.channels = 1;
+    node->out_pipe.count = 0;
     return UMUGU_SUCCESS;
 }
 
@@ -17,28 +18,22 @@ static inline int um__defaults(umugu_node *node) {
 }
 
 static inline int um__process(umugu_node *node) {
-    if (node->out_pipe_ready) {
+    if (node->out_pipe.samples) {
         return UMUGU_NOOP;
     }
 
     um__oscope *self = (void *)node;
-    umugu_frame *out = umugu_get_temp_signal(&node->out_pipe);
-
-    if (!self->freq) {
-        memset(out, 0, node->out_pipe.count * sizeof(umugu_frame));
-        return UMUGU_SUCCESS;
-    }
+    umugu_sample *out = umugu_alloc_signal_buffer(&node->out_pipe);
 
     for (int i = 0; i < node->out_pipe.count; i++) {
         float sample = umugu_waveform_lut[self->waveform][self->phase];
-        out[i].left = sample;
-        out[i].right = sample;
+        out[i] = sample;
         self->phase += self->freq;
         if (self->phase >= UMUGU_SAMPLE_RATE) {
             self->phase -= UMUGU_SAMPLE_RATE;
         }
     }
-    node->out_pipe_ready = 1;
+
     return UMUGU_SUCCESS;
 }
 

@@ -9,8 +9,8 @@ Build prerequisites:
 
 ## umugu
 - C99 Compiler
-- PortAudio19
+- PortAudio19 (optional)
 
-## umg-editor
+## umugu-maker
 - C++20 Compiler
 - SDL2

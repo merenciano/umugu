@@ -4,8 +4,8 @@
 #include <math.h>
 
 static inline int um__init(umugu_node *node) {
-    node->out_pipe_type = UMUGU_PIPE_SIGNAL;
-    node->out_pipe_ready = 0;
+    node->out_pipe.samples = NULL;
+    node->out_pipe.count = 0;
     return UMUGU_SUCCESS;
 }
 
@@ -17,7 +17,7 @@ static inline int um__defaults(umugu_node *node) {
 }
 
 static inline int um__process(umugu_node *node) {
-    if (node->out_pipe_ready) {
+    if (node->out_pipe.samples) {
         return UMUGU_NOOP;
     }
 
@@ -25,21 +25,19 @@ static inline int um__process(umugu_node *node) {
     um__limiter *self = (void *)node;
 
     umugu_node *input = ctx->pipeline.nodes[node->in_pipe_node];
-    if (!input->out_pipe_ready) {
+    if (!input->out_pipe.samples) {
         umugu_node_dispatch(input, UMUGU_FN_PROCESS);
-        assert(input->out_pipe_ready);
+        assert(input->out_pipe.samples);
     }
 
-    umugu_frame *out = umugu_get_temp_signal(&node->out_pipe);
+    node->out_pipe.channels = input->out_pipe.channels;
+    umugu_sample *out = umugu_alloc_signal_buffer(&node->out_pipe);
 
-    for (int i = 0; i < node->out_pipe.count; ++i) {
-        out[i].left = fmin(input->out_pipe.frames[i].left, self->max);
-        out[i].left = fmax(input->out_pipe.frames[i].left, self->min);
-        out[i].right = fmin(input->out_pipe.frames[i].right, self->max);
-        out[i].right = fmax(input->out_pipe.frames[i].right, self->min);
+    for (int i = 0; i < node->out_pipe.count * node->out_pipe.channels; ++i) {
+        out[i] = fmin(input->out_pipe.samples[i], self->max);
+        out[i] = fmax(input->out_pipe.samples[i], self->min);
     }
 
-    node->out_pipe_ready = 1;
     return UMUGU_SUCCESS;
 }
 

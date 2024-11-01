@@ -157,8 +157,8 @@ static inline int umugu_midi_process(umugu_ctrl *ctrl, int32_t msg) {
 static inline int um__init(umugu_node *node) {
     umugu_ctx *ctx = umugu_get_context();
     um__ctrlmidi *self = (void *)node;
-    node->out_pipe_type = UMUGU_PIPE_CONTROL;
-    node->out_pipe_ready = 0;
+    node->out_pipe.samples = NULL;
+    node->out_pipe.count = 0;
 
     if (!um__pm_initialized) {
         Pm_Initialize();
@@ -204,9 +204,10 @@ static inline int um__defaults(umugu_node *node) {
 }
 
 static inline int um__process(umugu_node *node) {
-    if (node->out_pipe_ready) {
+    if (node->out_pipe.samples) {
         return UMUGU_NOOP;
     }
+    node->out_pipe.samples = (void *)0xFF;
 
     umugu_ctx *ctx = umugu_get_context();
     um__ctrlmidi *self = (void *)node;
@@ -225,8 +226,6 @@ static inline int um__process(umugu_node *node) {
     for (int i = 0; i < count; ++i) {
         umugu_midi_process(&ctx->pipeline.control, events[i].message);
     }
-
-    node->out_pipe_ready = 1;
 
     return UMUGU_SUCCESS;
 }

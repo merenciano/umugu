@@ -1,14 +1,16 @@
 #include "builtin_nodes.h"
 #include "umugu.h"
+#include "umutils.h"
 
 #include <assert.h>
 #include <string.h>
 
-static umugu_frame frames_empty[256];
+#define EMPTY_COUNT 1024
+static const umugu_sample EMPTY_SAMPLES[EMPTY_COUNT] = {0};
 
 static inline int um__init(umugu_node *node) {
-    node->out_pipe_ready = 0;
-    node->out_pipe_type = UMUGU_PIPE_SIGNAL;
+    node->out_pipe.samples = NULL;
+    node->out_pipe.channels = 1;
     return UMUGU_SUCCESS;
 }
 
@@ -20,52 +22,55 @@ static inline int um__defaults(umugu_node *node) {
 }
 
 static inline int um__process(umugu_node *node) {
-    if (node->out_pipe_ready) {
+    if (node->out_pipe.samples) {
         return UMUGU_NOOP;
     }
 
     umugu_ctx *ctx = umugu_get_context();
     um__mixer *self = (void *)node;
 
-    umugu_frame *out = umugu_get_temp_signal(&node->out_pipe);
+    umugu_sample *out = umugu_alloc_signal_buffer(&node->out_pipe);
     const int sample_count = node->out_pipe.count;
     int signals = 0;
 
     umugu_node *input = ctx->pipeline.nodes[node->in_pipe_node];
-    if (!input->out_pipe_ready) {
+    if (!input->out_pipe.samples) {
         umugu_node_dispatch(input, UMUGU_FN_PROCESS);
-        assert(input->out_pipe_ready);
+        assert(input->out_pipe.samples);
     }
 
+    umugu_sample *in_samples =
+        umu_signal_get_channel(input->out_pipe, node->in_pipe_channel);
+
     ++signals;
-    memcpy(out, input->out_pipe.frames,
-           sizeof(umugu_frame) * node->out_pipe.count);
+    memcpy(out, in_samples, sizeof(umugu_sample) * sample_count);
 
     for (int i = 0; i < self->input_count - 1; ++i) {
         umugu_node *in = ctx->pipeline.nodes[self->extra_pipe_in_node_idx[i]];
-        if (!in->out_pipe_ready) {
+        if (!in->out_pipe.samples) {
             umugu_node_dispatch(node, UMUGU_FN_PROCESS);
-            assert(in->out_pipe_ready);
+            assert(in->out_pipe.samples);
         }
 
-        if (memcmp(in->out_pipe.frames, frames_empty,
-                   in->out_pipe.count < 256 ? in->out_pipe.count : 256)) {
+        umugu_sample *in_samples = umu_signal_get_channel(
+            in->out_pipe, self->extra_pipe_in_channel[i]);
+        if (memcmp(in_samples, EMPTY_SAMPLES,
+                   sizeof(umugu_sample) * (in->out_pipe.count < EMPTY_COUNT
+                                               ? in->out_pipe.count
+                                               : EMPTY_COUNT))) {
             ++signals;
         }
 
         for (int j = 0; j < sample_count; ++j) {
-            out[j].left += in->out_pipe.frames[j].left;
-            out[j].right += in->out_pipe.frames[j].right;
+            out[j] += in_samples[j];
         }
     }
 
-    float inv_count = 1.0f / signals;
+    /* Normalize */
+    const float inv_count = 1.0f / signals;
     for (int i = 0; i < sample_count; i++) {
-        out[i].left *= inv_count;
-        out[i].right *= inv_count;
+        out[i] *= inv_count;
     }
-
-    node->out_pipe_ready = 1;
 
     return UMUGU_SUCCESS;
 }

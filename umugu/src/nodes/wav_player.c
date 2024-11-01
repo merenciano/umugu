@@ -1,47 +1,30 @@
 #include "builtin_nodes.h"
 #include "umugu.h"
+#include "umutils.h"
 
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
 
-static inline int um__getsize(int type) {
-    switch (type) {
+static inline umugu_sample um__sample(umugu_generic_signal *s, int i, int ch) {
+    void *sample = umu_generic_signal_sample(s, i, ch);
+    switch (s->type) {
     case UMUGU_TYPE_UINT8:
-        return 1;
+        return ((umugu_sample)(*(uint8_t *)sample) / 255.0f) * 2.0f - 1.0f;
     case UMUGU_TYPE_INT16:
-        return 2;
-    case UMUGU_TYPE_INT32:
-        return 4;
+        return (umugu_sample)(*(int16_t *)sample) / 32768.0f;
     case UMUGU_TYPE_FLOAT:
-        return 4;
+        return (umugu_sample)(*(float *)sample);
     default:
         assert(0);
-        return 0;
-    }
-}
-
-static inline float um__inv_range(int type) {
-    switch (type) {
-    case UMUGU_TYPE_UINT8:
-        return 1.0f / 255.0f;
-    case UMUGU_TYPE_INT16:
-        return 1.0f / 32768.0f;
-    case UMUGU_TYPE_INT32:
-        return 1.0f / 2147483647.0f;
-    case UMUGU_TYPE_FLOAT:
-        return 1.0f;
-    default:
-        assert(0);
-        return 0;
+        return 0.0f;
     }
 }
 
 static inline int um__init(umugu_node *node) {
     umugu_ctx *ctx = umugu_get_context();
     um__wavplayer *self = (um__wavplayer *)node;
-    node->out_pipe_ready = 0;
-    node->out_pipe_type = UMUGU_PIPE_SIGNAL;
+    node->out_pipe.samples = NULL;
 
     self->file_handle = fopen(self->filename, "rb");
     if (!self->file_handle) {
@@ -54,23 +37,30 @@ static inline int um__init(umugu_node *node) {
      * While I'm here I'm going to assign the signal format from the header. */
     char header[44];
     fread(header, 44, 1, self->file_handle);
-    self->channels = *(int16_t *)(header + 22);
-    self->sample_rate = *(int *)(header + 24);
+    self->wav.flags |= UMUGU_SIGNAL_INTERLEAVED;
+    self->wav.count = 0;
+    self->wav.channels = *(int16_t *)(header + 22);
+    self->wav.rate = *(int *)(header + 24);
 
-    /* Here I'm deducing the type format given the byte size:
-     *   - 1 byte : UINT8. UMUGU_TYPE_UINT8 = 64 so 63 + size is correct
-     *   - 2 bytes: INT16. UMUGU_TYPE_INT16 = 65 so 63 + size is correct
-     *   - 4 bytes: FLOAT. UMUGU_TYPE_FLOAT = 67 so 63 + size is correct */
-    self->sample_size_bytes = header[34] / 8;
-    self->sample_type = 63 + self->sample_size_bytes;
+    const int sample_size = header[34] / 8;
+    if (sample_size == 2) {
+        self->wav.type = UMUGU_TYPE_INT16;
+    } else if (sample_size == 4) {
+        self->wav.type = UMUGU_TYPE_FLOAT;
+    } else if (sample_size == 1) {
+        self->wav.type = UMUGU_TYPE_UINT8;
+    } else {
+        assert(0 && "Unexpected sample_size.");
+    }
 
     /* The standard way would be checking first if it's int or float..
-     * int type = header[20] == 1 ? INTEGER : FLOAT; // It can be 1 (int) or 3
-     * (float) And then checking the size in bytes.. sample_bytes = header[34] /
-     * 8; Note that in WAV format, integers of 8- bits are unsigned and 9+
-     * signed.
+     * int type = header[20] == 1 ? INTEGER : FLOAT; // It can be 1
+     * (int) or 3 (float) And then checking the size in bytes..
+     * sample_bytes = header[34] / 8; Note that in WAV format, integers
+     * of 8- bits are unsigned and 9+ signed.
      */
 
+    node->out_pipe.channels = self->wav.channels;
     return UMUGU_SUCCESS;
 }
 
@@ -83,41 +73,31 @@ static inline int um__defaults(umugu_node *node) {
 
 /* TODO: Implement this node type mmapping the wav. */
 static inline int um__process(umugu_node *node) {
-    if (node->out_pipe_ready) {
+    if (node->out_pipe.samples) {
         return UMUGU_NOOP;
     }
 
     um__wavplayer *self = (void *)node;
-    // umugu_frame *out = umugu_get_temp_signal(&node->pipe_out);
-    const int count = umugu_get_context()->io.out_audio_signal.count;
-    const size_t signal_size =
-        count * self->channels * um__getsize(self->sample_type);
-    umugu_frame *src = umugu_alloc_temp(signal_size);
-    fread(src, signal_size, 1, self->file_handle);
-    const float inv_range = um__inv_range(self->sample_type);
+    void *src = umugu_get_temp_generic_signal(&self->wav);
+    fread(src,
+          umu_type_size(self->wav.type) * self->wav.count * self->wav.channels,
+          1, self->file_handle);
 
-    /* For now we're assuming that te wav is also 48000 samples rate
-        and signed int16.
-        TODO: Implement UINT8, INT32 and FLOAT at least. */
-    if (self->sample_rate != 48000 || self->sample_type != UMUGU_TYPE_INT16) {
-        umugu_get_context()->io.log("[ERR] WavPlayer: sample rate and sample "
-                                    "type conversions not supported yet.");
+    /* TODO: Sample rate conversor. */
+    if (self->wav.rate != UMUGU_SAMPLE_RATE) {
+        umugu_get_context()->io.log("[ERR] WavPlayer: sample rate must be %d.",
+                                    UMUGU_SAMPLE_RATE);
         return UMUGU_ERR_STREAM;
     }
 
-    umugu_frame *out = umugu_get_temp_signal(&node->out_pipe);
-    int16_t *it = (int16_t *)(src);
-    for (int i = 0; i < node->out_pipe.count; ++i) {
-        if (self->channels == 2) {
-            out[i].left = *it++ * inv_range;
-            out[i].right = *it++ * inv_range;
-        } else {
-            out[i].left = *it * inv_range;
-            out[i].right = *it++ * inv_range;
+    umugu_sample *out = umugu_alloc_signal_buffer(&node->out_pipe);
+
+    const int count = node->out_pipe.count;
+    for (int ch = 0; ch < node->out_pipe.channels; ++ch) {
+        for (int i = 0; i < count; ++i) {
+            out[ch * count + i] = um__sample(&self->wav, i, ch);
         }
     }
-
-    node->out_pipe_ready = 1;
 
     return UMUGU_SUCCESS;
 }

@@ -26,6 +26,7 @@ target_include_directories(umugu PRIVATE
 
 target_sources(umugu PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/debugu.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/builtin_nodes.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu_serialization.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/oscilloscope.c

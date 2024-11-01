@@ -6,6 +6,7 @@ int umugu_audio_backend_play(int milliseconds);
 
 #endif /* __UMUGU_STDOUT_H__ */
 
+#define UMUGU_STDOUT_IMPL
 #ifdef UMUGU_STDOUT_IMPL
 
 #include "umugu/umugu.h"
@@ -30,20 +31,37 @@ typedef struct {
     int32_t data_size;
 } wav_header;
 
+static inline int um__type_size(int type) {
+    switch (type) {
+    case UMUGU_TYPE_UINT8:
+        return 1;
+    case UMUGU_TYPE_INT16:
+        return 2;
+    case UMUGU_TYPE_INT32:
+        return 4;
+    case UMUGU_TYPE_FLOAT:
+        return 4;
+    default:
+        assert(0);
+        return 0;
+    }
+}
+
 void um__write_wav_header(size_t wav_data_size) {
+    umugu_ctx *ctx = umugu_get_context();
+    umugu_generic_signal *sig = &ctx->io.out_audio;
     wav_header hdr = {
         .riff = "RIFF",
         .bytes_remaining = wav_data_size + 36,
         .wave = "WAVE",
         .fmt = "fmt ",
         .num16 = 16,
-        .sample_fmt = UMUGU_SAMPLE_TYPE == UMUGU_TYPE_FLOAT ? 3 : 1,
-        .channels = UMUGU_CHANNELS,
-        .sample_rate = UMUGU_SAMPLE_RATE,
-        .bytes_per_sec =
-            UMUGU_SAMPLE_RATE * UMUGU_CHANNELS * sizeof(umugu_sample),
-        .bytes_per_frame = UMUGU_CHANNELS * sizeof(umugu_sample),
-        .bits_per_sample = sizeof(umugu_sample) * 8, // 8: byte -> bits
+        .sample_fmt = sig->type == UMUGU_TYPE_FLOAT ? 3 : 1,
+        .channels = sig->channels,
+        .sample_rate = sig->rate,
+        .bytes_per_sec = sig->rate * sig->channels * um__type_size(sig->type),
+        .bytes_per_frame = sig->channels * um__type_size(sig->type),
+        .bits_per_sample = um__type_size(sig->type) * 8, // 8: byte -> bits
         .data = "data",
         .data_size = wav_data_size};
 
@@ -54,10 +72,12 @@ void um__write_wav_header(size_t wav_data_size) {
 
 int umugu_audio_backend_play(int milliseconds) {
     enum { SAMPLE_COUNT = 2048 };
-    umugu_frame frames[SAMPLE_COUNT];
-    umugu_ctx *ctx = umugu_get_context();
+    char samples[SAMPLE_COUNT * 4];
 
-    int frames_left = (int)(UMUGU_SAMPLE_RATE / 1000) * milliseconds;
+    umugu_ctx *ctx = umugu_get_context();
+    umugu_generic_signal *sig = &ctx->io.out_audio;
+
+    int frames_left = (int)(sig->rate / 1000) * milliseconds;
     assert(frames_left >= 0);
     um__write_wav_header(frames_left);
 
@@ -65,18 +85,16 @@ int umugu_audio_backend_play(int milliseconds) {
         int frame_count =
             frames_left > SAMPLE_COUNT ? SAMPLE_COUNT : frames_left;
         frames_left -= frame_count;
-        ctx->io.out_audio_signal = (umugu_signal){.frames = frames,
-                                                  .count = frame_count,
-                                                  .rate = UMUGU_SAMPLE_RATE,
-                                                  .type = UMUGU_SAMPLE_TYPE,
-                                                  .channels = UMUGU_CHANNELS};
+        sig->sample_data = (void *)samples;
+        sig->count = frame_count;
 
         umugu_newframe();
         for (int i = 0; i < ctx->pipeline.node_count; ++i) {
             umugu_node_dispatch(ctx->pipeline.nodes[0], UMUGU_FN_PROCESS);
         }
 
-        fwrite(frames, frame_count * sizeof(umugu_frame), 1, stdout);
+        fwrite(samples, frame_count * um__type_size(sig->type) * sig->channels,
+               1, stdout);
     }
 
     return UMUGU_SUCCESS;

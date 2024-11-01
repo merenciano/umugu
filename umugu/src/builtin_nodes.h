@@ -24,10 +24,7 @@ extern umugu_node_fn um__oscope_getfn(umugu_fn fn);
 /* Wav file player - umugu/src/nodes/wav_player.c */
 typedef struct {
     umugu_node node;
-    int32_t sample_rate;
-    int16_t sample_type;
-    int16_t channels;
-    int32_t sample_size_bytes;
+    umugu_generic_signal wav;
     char filename[UMUGU_PATH_LEN];
     void *file_handle;
 } um__wavplayer;
@@ -93,7 +90,7 @@ extern umugu_node_fn um__ctrlmidi_getfn(umugu_fn fn);
 typedef struct {
     umugu_node node;
     int32_t waveform;
-    int32_t phase[UMUGU_NOTE_COUNT];
+    float phase[UMUGU_NOTE_COUNT];
 } um__piano;
 
 extern const umugu_var_info um__piano_vars[];
@@ -110,8 +107,6 @@ extern const umugu_var_info um__output_vars[];
 extern const int32_t um__output_size;
 extern const int32_t um__output_var_count;
 extern umugu_node_fn um__output_getfn(umugu_fn fn);
-
-extern const umugu_node_info g_builtin_nodes_info[];
 
 /* Waveform helpers - umugu/src/nodes/waveform.c */
 // TODO: Generate a binary file for mmaping instead of a .c
@@ -144,24 +139,22 @@ const int32_t um__oscope_size = (int32_t)sizeof(um__oscope);
 const int32_t um__oscope_var_count = UM__ARRAY_COUNT(um__oscope_vars);
 
 const umugu_var_info um__wavplayer_vars[] = {
-    {.name = {.str = "Sample rate"},
-     .offset_bytes = offsetof(um__wavplayer, sample_rate),
-     .type = UMUGU_TYPE_INT32,
-     .count = 1,
-     .flags = UMUGU_VAR_RDONLY},
-    {.name = {.str = "Sample value type"},
-     .offset_bytes = offsetof(um__wavplayer, sample_type),
-     .type = UMUGU_TYPE_INT16,
-     .count = 1,
-     .flags = UMUGU_VAR_RDONLY},
     {.name = {.str = "Channels"},
-     .offset_bytes = offsetof(um__wavplayer, channels),
-     .type = UMUGU_TYPE_INT16,
+     .offset_bytes = offsetof(um__wavplayer, wav) +
+                     offsetof(umugu_generic_signal, channels),
+     .type = UMUGU_TYPE_INT32,
      .count = 1,
      .flags = UMUGU_VAR_RDONLY},
-    {.name = {.str = "Sample value size bytes"},
-     .offset_bytes = offsetof(um__wavplayer, sample_size_bytes),
+    {.name = {.str = "Sample rate"},
+     .offset_bytes =
+         offsetof(um__wavplayer, wav) + offsetof(umugu_generic_signal, rate),
      .type = UMUGU_TYPE_INT32,
+     .count = 1,
+     .flags = UMUGU_VAR_RDONLY},
+    {.name = {.str = "Sample data type"},
+     .offset_bytes =
+         offsetof(um__wavplayer, wav) + offsetof(umugu_generic_signal, type),
+     .type = UMUGU_TYPE_INT16,
      .count = 1,
      .flags = UMUGU_VAR_RDONLY},
     {.name = {.str = "Filename"},
@@ -215,7 +208,7 @@ const umugu_var_info um__mixer_vars[] = {
      .type = UMUGU_TYPE_INT8,
      .count = UMUGU_MIXER_MAX_INPUTS,
      .misc.rangei.min = 0,
-     .misc.rangei.max = UMUGU_CHANNELS}};
+     .misc.rangei.max = UMUGU_MIXER_MAX_INPUTS}};
 const int32_t um__mixer_size = (int32_t)sizeof(um__mixer);
 const int32_t um__mixer_var_count = UM__ARRAY_COUNT(um__mixer_vars);
 
