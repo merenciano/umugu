@@ -23,6 +23,8 @@ int main(int argc, char **argv) {
     sig->rate = UMUGU_SAMPLE_RATE;
     sig->type = UMUGU_TYPE_FLOAT;
 
+    umugu_init();
+
     if (argc == 2) {
         umugu_import_pipeline(argv[1]);
     } else {

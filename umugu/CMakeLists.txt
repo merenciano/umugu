@@ -28,14 +28,15 @@ target_sources(umugu PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/debugu.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/builtin_nodes.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/controller.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu_serialization.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/waveform.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/umutils.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/oscilloscope.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/waveform.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/wav_player.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/mixer.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/limiter.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/amplitude.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/control_midi.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/piano.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/output.c
 )

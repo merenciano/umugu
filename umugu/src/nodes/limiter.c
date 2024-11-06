@@ -31,7 +31,7 @@ static inline int um__process(umugu_node *node) {
     }
 
     node->out_pipe.channels = input->out_pipe.channels;
-    umugu_sample *out = umugu_alloc_signal_buffer(&node->out_pipe);
+    umugu_sample *out = umugu_alloc_signal(&node->out_pipe);
 
     for (int i = 0; i < node->out_pipe.count * node->out_pipe.channels; ++i) {
         out[i] = fmin(input->out_pipe.samples[i], self->max);

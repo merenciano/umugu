@@ -72,20 +72,6 @@ extern const int32_t um__mixer_size;
 extern const int32_t um__mixer_var_count;
 extern umugu_node_fn um__mixer_getfn(umugu_fn fn);
 
-/* Control midi - umugu/src/nodes/control_midi.c */
-#define UMUGU_CTRLMIDI_DEVICE_NAME_MAXLEN 128
-typedef struct {
-    umugu_node node;
-    char dev_name[UMUGU_CTRLMIDI_DEVICE_NAME_MAXLEN];
-    int32_t dev_idx;
-    void *stream;
-} um__ctrlmidi;
-
-extern const umugu_var_info um__ctrlmidi_vars[];
-extern const int32_t um__ctrlmidi_size;
-extern const int32_t um__ctrlmidi_var_count;
-extern umugu_node_fn um__ctrlmidi_getfn(umugu_fn fn);
-
 /* Piano - umugu/src/nodes/piano.c */
 typedef struct {
     umugu_node node;
@@ -107,17 +93,6 @@ extern const umugu_var_info um__output_vars[];
 extern const int32_t um__output_size;
 extern const int32_t um__output_var_count;
 extern umugu_node_fn um__output_getfn(umugu_fn fn);
-
-/* Waveform helpers - umugu/src/nodes/waveform.c */
-// TODO: Generate a binary file for mmaping instead of a .c
-// TODO: Merge gen and fill (instead of filling, write to the file).
-// Exports the wave look-up table to a c file.
-// The file will be formatted and the variable named like the existing
-// osciloscope_lut.c. Remember to call umugu__fill_wave_lut before exporting, if
-// you don't the generated file will be exactly the same as osciloscope_lut.c.
-void um__gen_wave_file(const char *filename);
-// Recalculate the wave look-up table values.
-void um__fill_wave_lut(void);
 
 #endif /* __UMUGU_BUILTIN_NODES_H__ */
 
@@ -211,14 +186,6 @@ const umugu_var_info um__mixer_vars[] = {
      .misc.rangei.max = UMUGU_MIXER_MAX_INPUTS}};
 const int32_t um__mixer_size = (int32_t)sizeof(um__mixer);
 const int32_t um__mixer_var_count = UM__ARRAY_COUNT(um__mixer_vars);
-
-const umugu_var_info um__ctrlmidi_vars[] = {
-    {.name = {.str = "Device"},
-     .offset_bytes = offsetof(um__ctrlmidi, dev_name),
-     .type = UMUGU_TYPE_TEXT,
-     .count = UMUGU_CTRLMIDI_DEVICE_NAME_MAXLEN}};
-const int32_t um__ctrlmidi_size = (int32_t)sizeof(um__ctrlmidi);
-const int32_t um__ctrlmidi_var_count = UM__ARRAY_COUNT(um__ctrlmidi_vars);
 
 const umugu_var_info um__piano_vars[] = {
     {.name = {.str = "Waveform"},

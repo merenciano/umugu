@@ -30,8 +30,10 @@
 #include <stdint.h>
 
 #define UMUGU_VERSION_MAJOR 0
-#define UMUGU_VERSION_MINOR 6
+#define UMUGU_VERSION_MINOR 7
 #define UMUGU_VERSION_PATCH 0
+
+/* #define UMUGU_DISABLE_MIDI */
 
 #ifndef UMUGU_SAMPLE_RATE
 #define UMUGU_SAMPLE_RATE 48000
@@ -221,21 +223,25 @@ typedef struct {
     void *plug_handle;
 } umugu_node_info;
 
-enum umugu_ctrl_defs {
-    UMUGU_CTRL_GP1,
-    UMUGU_CTRL_GP2,
-    UMUGU_CTRL_GP3,
-    UMUGU_CTRL_GP4,
+enum umugu_ctrl_e {
+    UMUGU_CTRL_1,
+    UMUGU_CTRL_2,
+    UMUGU_CTRL_3,
+    UMUGU_CTRL_4,
+    UMUGU_CTRL_5,
+    UMUGU_CTRL_6,
+    UMUGU_CTRL_7,
+    UMUGU_CTRL_8,
+    UMUGU_CTRL_VARIATION,
+    UMUGU_CTRL_TIMBRE,
+    UMUGU_CTRL_RELEASE_TIME,
+    UMUGU_CTRL_ATTACK_TIME,
+    UMUGU_CTRL_VOLUME,
+    UMUGU_CTRL_PITCHWHEEL,
     UMUGU_CTRL_COUNT
 };
 
-enum umugu_ctrl_sound_defs {
-    UMUGU_CTRL_SOUND_VARIATION,
-    UMUGU_CTRL_SOUND_TIMBRE,
-    UMUGU_CTRL_SOUND_RELEASE_TIME,
-    UMUGU_CTRL_SOUND_ATTACK_TIME,
-    UMUGU_CTRL_SOUND_COUNT
-};
+enum umugu_ctrl_sound_defs { UMUGU_CTRL_SOUND_COUNT };
 
 enum umugu_ctrl_flags {
     UMUGU_CTRL_FLAG_NONE = 0,
@@ -244,12 +250,13 @@ enum umugu_ctrl_flags {
 };
 
 typedef struct {
-    int16_t ctrl[UMUGU_CTRL_COUNT];
-    int8_t sound[UMUGU_CTRL_SOUND_COUNT];
     int8_t notes[UMUGU_NOTE_COUNT];
+    int16_t values[UMUGU_CTRL_COUNT];
     int32_t flags;
-    int16_t pitch;
-    int16_t volume;
+
+    int32_t device_idx;
+    char device_name[UMUGU_PATH_LEN];
+    void *data_stream;
 } umugu_ctrl;
 
 /* Defines the audio fx pipeline graph. Pipelines are the scenes of umugu.
@@ -260,7 +267,6 @@ typedef struct {
 typedef struct {
     umugu_node *nodes[64];
     int64_t node_count;
-    umugu_ctrl control;
 } umugu_pipeline;
 
 /* Input and output abstraction.
@@ -268,6 +274,7 @@ typedef struct {
 typedef struct {
     int (*log)(const char *fmt, ...);
 
+    umugu_ctrl controller;
     umugu_generic_signal in_audio;
 
     /* The primary output of the library. Its contents (if any) are the next
@@ -275,6 +282,7 @@ typedef struct {
      * of the last umugu_produce_signal call.
      * WRITE: Umugu. */
     umugu_generic_signal out_audio;
+
     void *user_data;
     void *backend_data;
 } umugu_io;
@@ -328,10 +336,37 @@ void *umugu_alloc_temp(size_t bytes);
  * @return A convenience pointer to the signal's allocated sample buffer. It is
  * the same as signal->sample_data after this call.
  */
-umugu_sample *umugu_alloc_signal_buffer(umugu_signal *signal);
-void *umugu_get_temp_generic_signal(umugu_generic_signal *signal);
+umugu_sample *umugu_alloc_signal(umugu_signal *signal);
+void *umugu_alloc_generic_signal(umugu_generic_signal *signal);
+
+enum umugu_cfg_flags_e {
+    UMUGU_CONFIG_VERBOSE, /* Enable verbose logs. */
+    UMUGU_CONFIG_DEBUG,   /* Enable runtime checks and asserts. */
+    UMUGU_CONFIG_TRACE,   /* Enable trace report generation. */
+    UMUGU_CONFIG_PROFILE, /* Enable performance timers. */
+
+    /* Automatic scan and connection of midi controllers at startup. */
+    UMUGU_CONFIG_SCAN_MIDI_AUTO,
+
+    /* Enable controller emulation with keyboard. */
+    UMUGU_CONFIG_KEYBOARD_EMU,
+};
+
+typedef struct {
+    uint64_t flags;
+    char default_pipeline_file[UMUGU_PATH_LEN];
+    char default_audio_file[UMUGU_PATH_LEN];
+    char default_midi_device[UMUGU_PATH_LEN]; /* Minilab3 Minilab3 MIDI */
+    umugu_name fallback_pipeline_nodes[8];
+} umugu_config;
 
 typedef struct umugu_ctx {
+    /* Configuration variables. */
+    umugu_config config;
+
+    /* Input / output abstraction layer. */
+    umugu_io io;
+
     umugu_pipeline pipeline;
     umugu_mem_arena arena;
 
@@ -339,10 +374,17 @@ typedef struct umugu_ctx {
     umugu_node_info nodes_info[UMUGU_DEFAULT_NODE_INFO_CAPACITY];
     int32_t nodes_info_next;
 
-    /* Input / output abstraction layer. */
-    umugu_io io;
+    /* Duration of the configuration load in nanoseconds. */
+    int64_t init_time_ns;
+    /* Duration of the pipeline import or generation in nanoseconds. */
+    int64_t pipeline_load_time_ns;
+    /* Duration of the last controller update in nanoseconds. */
+    int64_t controller_update_time_ns;
+    /* Duration of the last pipeline pass in nanoseconds. */
+    int64_t pipeline_update_time_ns;
 } umugu_ctx;
 
+int umugu_init(void);
 int umugu_newframe(void);
 
 /* Updates the audio output signal.
@@ -374,7 +416,7 @@ int umugu_pipeline_generate(const umugu_name *node_names, int node_count);
  * Return the index of the context's node infos array where it has been copied.
  * If the dynamic object can not be found, return UMUGU_ERR_PLUG. */
 int umugu_plug(const umugu_name *name);
-void umugu_unplug(const umugu_name *name);
+void umugu_unplug(umugu_node_info *info);
 
 /* Node virtual dispatching.
  * @param fn Function identifier, valid definitions are prefixed with UMUGU_FN_.

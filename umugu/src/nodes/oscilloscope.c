@@ -23,7 +23,7 @@ static inline int um__process(umugu_node *node) {
     }
 
     um__oscope *self = (void *)node;
-    umugu_sample *out = umugu_alloc_signal_buffer(&node->out_pipe);
+    umugu_sample *out = umugu_alloc_signal(&node->out_pipe);
 
     for (int i = 0; i < node->out_pipe.count; i++) {
         float sample = umugu_waveform_lut[self->waveform][self->phase];

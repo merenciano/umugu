@@ -7,20 +7,14 @@
 
 /* UMUGU UTILITIES */
 
-enum umugu_note_e {
-    UMUGU_NOTE_C,
-    UMUGU_NOTE_CS,
-    UMUGU_NOTE_D,
-    UMUGU_NOTE_DS,
-    UMUGU_NOTE_E,
-    UMUGU_NOTE_F,
-    UMUGU_NOTE_FS,
-    UMUGU_NOTE_G,
-    UMUGU_NOTE_GS,
-    UMUGU_NOTE_A,
-    UMUGU_NOTE_AS,
-    UMUGU_NOTE_B,
-};
+typedef int64_t umu_nanosec;
+umu_nanosec umu_time_now(void);
+static inline float umu_time_sec(umu_nanosec ns) { return ns / 1000000000.0f; }
+static inline int64_t umu_time_ms(umu_nanosec ns) { return ns / 1000000; }
+static inline int64_t umu_time_micro(umu_nanosec ns) { return ns / 1000; }
+static inline umu_nanosec umu_time_elapsed(umu_nanosec ns) {
+    return umu_time_now() - ns;
+}
 
 /**
  * Note frequencies lookup table.
@@ -103,5 +97,13 @@ static inline umugu_sample *umu_signal_get_channel(umugu_signal signal,
     channel *= ((channel >= 0) && (channel < signal.channels));
     return signal.samples + signal.count * channel;
 }
+
+// TODO: Generate a binary file for mmaping instead of a .c
+// Exports the wave look-up table to a c file.
+// Remember to call umugu__fill_wave_lut before exporting, if
+// you don't, the generated file will be exactly the same as before.
+void umu_gen_waveform_file(const char *filename);
+// Recalculate the wave look-up table values.
+void umu_fill_waveform_lut(void);
 
 #endif /* __UMUGU_UTILS_H__ */

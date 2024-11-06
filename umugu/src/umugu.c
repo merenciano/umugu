@@ -1,5 +1,6 @@
 #include "umugu.h"
 
+#include "controller.h"
 #include "umutils.h"
 
 #define UMUGU_BUILTIN_NODES_DEFINITIONS
@@ -53,13 +54,6 @@ const umugu_node_info g_builtin_nodes_info[] = {
      .vars = um__limiter_vars,
      .plug_handle = NULL},
 
-    {.name = {.str = "ControlMidi"},
-     .size_bytes = um__ctrlmidi_size,
-     .var_count = um__ctrlmidi_var_count,
-     .getfn = um__ctrlmidi_getfn,
-     .vars = um__ctrlmidi_vars,
-     .plug_handle = NULL},
-
     {.name = {.str = "Piano"},
      .size_bytes = um__piano_size,
      .var_count = um__piano_var_count,
@@ -93,21 +87,12 @@ um__node_info_builtin_find(const umugu_name *name) {
     return NULL;
 }
 
-const umugu_node_info *umugu_node_info_find(const umugu_name *name) {
+const umugu_node_info *umugu_node_info_load(const umugu_name *name) {
+    /* Check if the node info is already loaded. */
     for (int i = 0; i < g_ctx->nodes_info_next; ++i) {
         if (um__name_equals(&g_ctx->nodes_info[i].name, name)) {
             return g_ctx->nodes_info + i;
         }
-    }
-
-    return NULL;
-}
-
-const umugu_node_info *umugu_node_info_load(const umugu_name *name) {
-    /* Check if the node info is already loaded. */
-    const umugu_node_info *found = umugu_node_info_find(name);
-    if (found) {
-        return found;
     }
 
     /* Look for it in the built-in nodes. */
@@ -132,10 +117,19 @@ const umugu_node_info *umugu_node_info_load(const umugu_name *name) {
     return NULL;
 }
 
+int umugu_init(void) {
+    umu_nanosec init_time = umu_time_now();
+    umugu_ctrl_init();
+    g_ctx->init_time_ns = umu_time_elapsed(init_time);
+    return UMUGU_SUCCESS;
+}
+
 int umugu_newframe(void) {
     for (int i = 0; i < g_ctx->pipeline.node_count; ++i) {
         g_ctx->pipeline.nodes[i]->out_pipe.samples = NULL;
     }
+
+    umugu_ctrl_update();
 
     return UMUGU_SUCCESS;
 }
@@ -201,7 +195,7 @@ void *umugu_alloc_temp(size_t bytes) {
     return ret;
 }
 
-umugu_sample *umugu_alloc_signal_buffer(umugu_signal *s) {
+umugu_sample *umugu_alloc_signal(umugu_signal *s) {
     assert(s);
     assert(s->channels > 0 && s->channels < 32 &&
            "Invalid number of channels.");
@@ -212,7 +206,7 @@ umugu_sample *umugu_alloc_signal_buffer(umugu_signal *s) {
     return s->samples;
 }
 
-void *umugu_get_temp_generic_signal(umugu_generic_signal *s) {
+void *umugu_alloc_generic_signal(umugu_generic_signal *s) {
     assert(s);
     s->count = g_ctx->io.out_audio.count;
     assert(s->count > 0);
@@ -249,15 +243,9 @@ int umugu_plug(const umugu_name *name) {
     return g_ctx->nodes_info_next - 1;
 }
 
-void umugu_unplug(const umugu_name *name) {
-    umugu_node_info *info = (void *)umugu_node_info_find(name);
+void umugu_unplug(umugu_node_info *info) {
     if (info && info->plug_handle) {
         dlclose(info->plug_handle);
-        umugu_node_info *last = &g_ctx->nodes_info[--g_ctx->nodes_info_next];
-        if (info != last) {
-            memcpy(info, &g_ctx->nodes_info[g_ctx->nodes_info_next],
-                   sizeof(*info));
-        }
-        memset(last, 0, sizeof(*last));
+        memset(info, 0, sizeof(*info));
     }
 }

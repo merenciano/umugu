@@ -78,7 +78,7 @@ static inline int um__process(umugu_node *node) {
     }
 
     um__wavplayer *self = (void *)node;
-    void *src = umugu_get_temp_generic_signal(&self->wav);
+    void *src = umugu_alloc_generic_signal(&self->wav);
     fread(src,
           umu_type_size(self->wav.type) * self->wav.count * self->wav.channels,
           1, self->file_handle);
@@ -90,7 +90,7 @@ static inline int um__process(umugu_node *node) {
         return UMUGU_ERR_STREAM;
     }
 
-    umugu_sample *out = umugu_alloc_signal_buffer(&node->out_pipe);
+    umugu_sample *out = umugu_alloc_signal(&node->out_pipe);
 
     const int count = node->out_pipe.count;
     for (int ch = 0; ch < node->out_pipe.channels; ++ch) {

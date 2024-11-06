@@ -29,7 +29,7 @@ static inline int um__process(umugu_node *node) {
     umugu_ctx *ctx = umugu_get_context();
     um__mixer *self = (void *)node;
 
-    umugu_sample *out = umugu_alloc_signal_buffer(&node->out_pipe);
+    umugu_sample *out = umugu_alloc_signal(&node->out_pipe);
     const int sample_count = node->out_pipe.count;
     int signals = 0;
 
