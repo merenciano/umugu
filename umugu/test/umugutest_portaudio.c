@@ -23,23 +23,30 @@ int main(int argc, char **argv) {
     sig->rate = UMUGU_SAMPLE_RATE;
     sig->type = UMUGU_TYPE_FLOAT;
 
+    umugu_config *conf = &ctx->config;
+    conf->flags |= UMUGU_CONFIG_SCAN_MIDI_AUTO;
+    conf->flags |= UMUGU_CONFIG_VERBOSE;
+    conf->flags |= UMUGU_CONFIG_DEBUG;
+    strcpy(conf->default_midi_device, "Minilab3 Minilab3 MIDI");
+
     umugu_init();
 
     if (argc == 2) {
         umugu_import_pipeline(argv[1]);
     } else {
-        const umugu_name nodes[] = {{.str = "WavFilePlayer"},
+        const umugu_name nodes[] = {{.str = "Piano"},
                                     {.str = "Amplitude"},
                                     {.str = "Limiter"},
                                     {.str = "Output"}};
         umugu_pipeline_generate(&nodes[0], sizeof(nodes) / sizeof(*nodes));
     }
-
+#if 0
     int offset_filename =
         ctx->nodes_info[ctx->pipeline.nodes[0]->info_idx].vars[3].offset_bytes;
     char *filename = offset_filename + (char *)ctx->pipeline.nodes[0];
     strncpy(filename, "../assets/audio/littlewingmono.wav", UMUGU_PATH_LEN);
     umugu_node_dispatch(ctx->pipeline.nodes[0], UMUGU_FN_INIT);
+#endif
 
     umugu_audio_backend_init();
     umugu_audio_backend_start_stream();

@@ -35,7 +35,7 @@ static inline int um__process(umugu_node *node) {
 
     umugu_sample *out = umugu_alloc_signal(&node->out_pipe);
     memset(out, 0, sizeof(umugu_sample) * node->out_pipe.count);
-    umugu_ctrl *ctrl = &ctx->pipeline.control;
+    umugu_ctrl *ctrl = &ctx->io.controller;
 
     int notes = 0;
     for (int note = 0; note < UMUGU_NOTE_COUNT; ++note) {

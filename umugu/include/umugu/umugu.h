@@ -241,8 +241,6 @@ enum umugu_ctrl_e {
     UMUGU_CTRL_COUNT
 };
 
-enum umugu_ctrl_sound_defs { UMUGU_CTRL_SOUND_COUNT };
-
 enum umugu_ctrl_flags {
     UMUGU_CTRL_FLAG_NONE = 0,
     UMUGU_CTRL_FLAG_SOSTENUTO = 1 << 0,
