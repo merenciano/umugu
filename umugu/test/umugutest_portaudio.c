@@ -12,45 +12,42 @@
 #define ARENA_SIZE (1024 * 1024)
 static char arena_buffer[ARENA_SIZE];
 
-int main(int argc, char **argv) {
+int
+main(int argc, char **argv)
+{
     umugu_set_arena(arena_buffer, ARENA_SIZE);
     umugu_ctx *ctx = umugu_get_context();
     ctx->io.log = printf;
 
+    umugu_config *conf = &ctx->config;
+    conf->flags |= UMUGU_CONFIG_SCAN_MIDI_AUTO;
+    conf->flags = UMUGU_CONFIG_DEBUG;
+    conf->sample_rate = 48000;
+    // strcpy(conf->default_midi_device, "Minilab3 Minilab3 MIDI");
+    strcpy(conf->default_midi_device, "hw:Minilab3");
+    strcpy(conf->default_audio_file, "../assets/audio/undertale.sf2");
+
     umugu_generic_signal *sig = &ctx->io.out_audio;
     sig->channels = 2;
     sig->flags = UMUGU_SIGNAL_ENABLED | UMUGU_SIGNAL_INTERLEAVED;
-    sig->rate = UMUGU_SAMPLE_RATE;
+    sig->rate = conf->sample_rate;
     sig->type = UMUGU_TYPE_FLOAT;
-
-    umugu_config *conf = &ctx->config;
-    conf->flags |= UMUGU_CONFIG_SCAN_MIDI_AUTO;
-    conf->flags |= UMUGU_CONFIG_VERBOSE;
-    conf->flags |= UMUGU_CONFIG_DEBUG;
-    strcpy(conf->default_midi_device, "Minilab3 Minilab3 MIDI");
 
     umugu_init();
 
     if (argc == 2) {
         umugu_import_pipeline(argv[1]);
     } else {
-        const umugu_name nodes[] = {{.str = "Piano"},
-                                    {.str = "Amplitude"},
-                                    {.str = "Limiter"},
-                                    {.str = "Output"}};
+        const umugu_name nodes[] = {{.str = "SoundFont"}, {.str = "Output"}};
         umugu_pipeline_generate(&nodes[0], sizeof(nodes) / sizeof(*nodes));
     }
-#if 0
-    int offset_filename =
-        ctx->nodes_info[ctx->pipeline.nodes[0]->info_idx].vars[3].offset_bytes;
-    char *filename = offset_filename + (char *)ctx->pipeline.nodes[0];
-    strncpy(filename, "../assets/audio/littlewingmono.wav", UMUGU_PATH_LEN);
-    umugu_node_dispatch(ctx->pipeline.nodes[0], UMUGU_FN_INIT);
-#endif
 
     umugu_audio_backend_init();
     umugu_audio_backend_start_stream();
 
+    ctx->io.log(
+        "Blocking main thread (audio is being processed in another thread via "
+        "callbacks)\nPress any key and 'Enter' for closing...\n");
     getchar();
 
     umugu_audio_backend_stop_stream();

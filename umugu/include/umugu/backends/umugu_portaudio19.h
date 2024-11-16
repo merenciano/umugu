@@ -126,7 +126,6 @@ static inline int um__pa_callback(const void *in_buffer, void *out_buffer,
         ctx->io.log("PortAudio callback priming output.\n");
     }
 
-    umugu_newframe();
     if (pa_data->input_active) {
         ctx->io.in_audio.sample_data = (void *)in_buffer;
         ctx->io.in_audio.count = frame_count;
@@ -157,6 +156,7 @@ int umugu_audio_backend_start_stream(void) {
     }
 
     pa_data->stream_running = 1;
+    ctx->io.log("PortAudio: Stream running.\n");
     return UMUGU_SUCCESS;
 }
 
@@ -202,6 +202,7 @@ int umugu_audio_backend_init(void) {
     if (um__pa_intern.error != paNoError) {
         um__pa_terminate();
         ctx->io.backend_data = NULL;
+        ctx->io.log("PortAudio Error: Initialize failed.\n");
         return UMUGU_ERR_AUDIO_BACKEND;
     }
 
@@ -211,7 +212,7 @@ int umugu_audio_backend_init(void) {
     um__pa_intern.output_params.device = Pa_GetDefaultOutputDevice();
     umugu_generic_signal *umugu_isig = &ctx->io.in_audio;
     umugu_generic_signal *umugu_osig = &ctx->io.out_audio;
-    double sample_rate = UMUGU_SAMPLE_RATE;
+    double sample_rate = (double)ctx->config.sample_rate;
     /* Input signal params */
     if (um__pa_intern.input_params.device != paNoDevice &&
         (umugu_isig->flags & UMUGU_SIGNAL_ENABLED)) {
@@ -269,6 +270,7 @@ int umugu_audio_backend_init(void) {
         ctx->io.backend_data = NULL;
         return UMUGU_ERR_AUDIO_BACKEND;
     }
+    ctx->io.log("PortAudio: Stream Opened!\n");
 
     if (iparams) {
         if (sample_rate != (double)umugu_isig->rate) {

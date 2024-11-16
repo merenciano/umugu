@@ -1,9 +1,13 @@
 
-BasedOnStyle: LLVM
+BasedOnStyle: Google
 Language: Cpp
-ColumnLimit: 100
+ColumnLimit: 80
 MaxEmptyLinesToKeep: 1
 InsertNewlineAtEOF: true
+PointerAlignment: Right
+ReferenceAlignment: Pointer
+TabWidth: 4
+IndentWidth: 4
 
 IncludeBlocks: Regroup
 IncludeCategories:

@@ -1,53 +1,57 @@
-#include "builtin_nodes.h"
 #include "umugu.h"
-#include "umutils.h"
+#include "umugu_internal.h"
 
 #include <assert.h>
 #include <string.h>
 
-static inline int um__init(umugu_node *node) {
-    um__piano *self = (void *)node;
+static inline int
+um__init(umugu_node *node)
+{
+    um_piano *self = (void *)node;
     node->out_pipe.samples = NULL;
     node->out_pipe.channels = 1;
-    memset(self->phase, 0, sizeof(self->phase));
+    memset(self->osc, 0, sizeof(self->osc));
     return UMUGU_SUCCESS;
 }
 
-static inline int um__defaults(umugu_node *node) {
-    um__piano *self = (void *)node;
-    self->waveform = UMUGU_WAVEFORM_SINE;
+static inline int
+um__defaults(umugu_node *node)
+{
+    um_piano *self = (void *)node;
+    self->waveform = UMUGU_WAVE_SINE;
     return UMUGU_SUCCESS;
 }
 
-static inline int um__process(umugu_node *node) {
-    if (node->out_pipe.samples) {
-        return UMUGU_NOOP;
-    }
-
+static inline int
+um__process(umugu_node *node)
+{
     umugu_ctx *ctx = umugu_get_context();
-    um__piano *self = (void *)node;
+    assert(node->iteration < ctx->pipeline_iteration);
 
-    umugu_node *input = ctx->pipeline.nodes[node->in_pipe_node];
+    um_piano *self = (void *)node;
+    umugu_node *input = ctx->pipeline.nodes[node->prev_node];
+    assert(input->iteration > node->iteration);
+#if 0
     if (!input->out_pipe.samples) {
         umugu_node_dispatch(input, UMUGU_FN_PROCESS);
         assert(input->out_pipe.samples);
     }
+#endif
 
     umugu_sample *out = umugu_alloc_signal(&node->out_pipe);
     memset(out, 0, sizeof(umugu_sample) * node->out_pipe.count);
     umugu_ctrl *ctrl = &ctx->io.controller;
 
+    const int count = node->out_pipe.count;
     int notes = 0;
     for (int note = 0; note < UMUGU_NOTE_COUNT; ++note) {
         if (ctrl->notes[note] > 0) {
-            float freq = umu_note_freq(note);
-            for (int i = 0; i < node->out_pipe.count; ++i) {
-                out[i] +=
-                    umugu_waveform_lut[self->waveform][(int)self->phase[note]];
-                self->phase[note] += freq;
-                if (self->phase[note] >= UMUGU_SAMPLE_RATE) {
-                    self->phase[note] -= UMUGU_SAMPLE_RATE;
-                }
+            self->osc[note].freq = um_note_freq(note);
+            umugu_signal tmp = node->out_pipe;
+            umugu_alloc_signal(&tmp);
+            um_oscillator_sine(&self->osc[note], &tmp);
+            for (int i = 0; i < count; ++i) {
+                node->out_pipe.samples[i] += tmp.samples[i];
             }
             ++notes;
         }
@@ -58,10 +62,13 @@ static inline int um__process(umugu_node *node) {
         out[i] *= inv;
     }
 
+    node->iteration = ctx->pipeline_iteration;
     return UMUGU_SUCCESS;
 }
 
-umugu_node_fn um__piano_getfn(umugu_fn fn) {
+umugu_node_fn
+um_piano_getfn(umugu_fn fn)
+{
     switch (fn) {
     case UMUGU_FN_INIT:
         return um__init;

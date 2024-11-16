@@ -4,7 +4,6 @@ set(CMAKE_C_STANDARD_REQUIRED TRUE)
 
 add_library(umugu STATIC)
 
-set_target_properties(umugu PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib)
 set_target_properties(umugu PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib)
 
 target_compile_options(umugu PRIVATE
@@ -25,13 +24,12 @@ target_include_directories(umugu PRIVATE
 )
 
 target_sources(umugu PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/umugu/umugu.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu_internal.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/debugu.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/builtin_nodes.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/controller.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu_serialization.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/waveform.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/umutils.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/oscilloscope.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/wav_player.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/mixer.c
@@ -63,6 +61,7 @@ link_libraries(
 	rt
     umugu
     portmidi
+    fluidsynth
 )
 
 add_executable(player-portaudio)
@@ -82,3 +81,11 @@ add_executable(player-stdout)
 target_sources(player-stdout PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/test/umugutest_stdout.c
 )
+
+if (UM_BUILD_TESTS)
+    add_executable(tests)
+
+    target_sources(tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/test.c
+    )
+endif()

@@ -115,10 +115,16 @@ UmuguMaker::UmuguMaker() {
   umugu_set_arena(malloc(Size), Size);
   umugu_get_context()->io.log = printf;
 
-  umugu_audio_backend_init();
-  umugu_import_pipeline("../assets/pipelines/default.bin");
+  umugu_generic_signal *sig = &umugu_get_context()->io.out_audio;
+  sig->channels = 2;
+  sig->flags = UMUGU_SIGNAL_ENABLED | UMUGU_SIGNAL_INTERLEAVED;
+  sig->rate = UMUGU_SAMPLE_RATE;
+  sig->type = UMUGU_TYPE_FLOAT;
 
-  umugu_audio_backend_start_stream();
+  umugu_audio_backend_init();
+  // umugu_import_pipeline("../assets/pipelines/default.bin");
+
+  // umugu_audio_backend_start_stream();
   OpenWindow();
 }
 

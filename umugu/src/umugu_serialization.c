@@ -1,7 +1,6 @@
 #ifndef __UMUGU_SERIALIZATION_H__
 #define __UMUGU_SERIALIZATION_H__
 
-#include "builtin_nodes.h"
 #include "umugu/umugu.h"
 
 #include <assert.h>
@@ -21,7 +20,9 @@ typedef struct {
     int32_t node_count;
 } umugu_binary_header;
 
-int umugu_export_pipeline(const char *filename, umugu_ctx *context) {
+int
+umugu_export_pipeline(const char *filename, umugu_ctx *context)
+{
     umugu_ctx *ctx = context ? context : umugu_get_context();
     FILE *f = fopen(filename, "wb");
     if (!f) {
@@ -37,12 +38,12 @@ int umugu_export_pipeline(const char *filename, umugu_ctx *context) {
 
     for (int i = 0; i < h.node_count; ++i) {
         umugu_node *n = ctx->pipeline.nodes[i];
-        fwrite(&ctx->nodes_info[n->info_idx].name, sizeof(umugu_name), 1, f);
+        fwrite(&ctx->nodes_info[n->type].name, sizeof(umugu_name), 1, f);
     }
 
     for (int i = 0; i < h.node_count; ++i) {
         umugu_node *n = ctx->pipeline.nodes[i];
-        fwrite(n, ctx->nodes_info[n->info_idx].size_bytes, 1, f);
+        fwrite(n, ctx->nodes_info[n->type].size_bytes, 1, f);
     }
 
     int32_t footer = UMUGU_FOOT_CODE;
@@ -51,7 +52,9 @@ int umugu_export_pipeline(const char *filename, umugu_ctx *context) {
     return UMUGU_SUCCESS;
 }
 
-int umugu_import_pipeline(const char *filename) {
+int
+umugu_import_pipeline(const char *filename)
+{
     umugu_ctx *ctx = umugu_get_context();
     FILE *f = fopen(filename, "rb");
     if (!f) {
@@ -116,7 +119,9 @@ int umugu_import_pipeline(const char *filename) {
     return UMUGU_SUCCESS;
 }
 
-int umugu_pipeline_generate(const umugu_name *node_names, int node_count) {
+int
+umugu_pipeline_generate(const umugu_name *node_names, int node_count)
+{
     umugu_ctx *ctx = umugu_get_context();
     assert(ctx->pipeline.node_count == 0);
     ctx->pipeline.node_count = node_count;
@@ -139,11 +144,11 @@ int umugu_pipeline_generate(const umugu_name *node_names, int node_count) {
     for (int i = 0; i < node_count; ++i) {
         umugu_node *n = (void *)node_it;
         ctx->pipeline.nodes[i] = n;
-        n->info_idx = info_indices[i];
-        n->in_pipe_node = i - 1;
+        n->type = info_indices[i];
+        n->prev_node = i - 1;
         umugu_node_dispatch(n, UMUGU_FN_DEFAULTS);
-        umugu_node_dispatch(n, UMUGU_FN_INIT);
-        node_it += ctx->nodes_info[n->info_idx].size_bytes;
+        // umugu_node_dispatch(n, UMUGU_FN_INIT);
+        node_it += ctx->nodes_info[n->type].size_bytes;
     }
     return UMUGU_SUCCESS;
 }

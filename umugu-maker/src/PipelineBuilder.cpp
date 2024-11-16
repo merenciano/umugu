@@ -18,7 +18,7 @@ void PipelineBuilder::Show() {
       for (int i = 0; i < pCtx->nodes_info_next; ++i) {
         if (ImGui::Button(pCtx->nodes_info[i].name.str)) {
           auto NewIt = mNodes.insert(It, (umugu_node *)calloc(1, pCtx->nodes_info[i].size_bytes));
-          (*NewIt)->info_idx = i;
+          (*NewIt)->type = i;
         }
       }
     }
@@ -56,7 +56,7 @@ void PipelineBuilder::Show() {
     fwrite(&Version, 4, 1, File);
     size_t PipelineSize = 0;
     for (auto pNode : mNodes) {
-      const umugu_node_info *pInfo = &pCtx->nodes_info[pNode->info_idx];
+      const umugu_node_info *pInfo = &pCtx->nodes_info[pNode->type];
       if (!pInfo) {
         printf("Node info not found.\n");
         return;
@@ -67,7 +67,7 @@ void PipelineBuilder::Show() {
     fwrite(&PipelineSize, 8, 1, File);
 
     for (auto pNode : mNodes) {
-      const umugu_node_info *pInfo = &pCtx->nodes_info[pNode->info_idx];
+      const umugu_node_info *pInfo = &pCtx->nodes_info[pNode->type];
       if (!pInfo) {
         printf("Node info not found.\n");
         return;

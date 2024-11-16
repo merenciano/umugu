@@ -7,7 +7,7 @@
 
 namespace umumk {
 void DrawNodeWidgets(umugu_node *aNode) {
-  const umugu_node_info &Info = umugu_get_context()->nodes_info[aNode->info_idx];
+  const umugu_node_info &Info = umugu_get_context()->nodes_info[aNode->type];
 
   ImGui::TextUnformatted(Info.name.str);
   const int VarCount = Info.var_count;

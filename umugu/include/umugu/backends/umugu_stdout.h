@@ -88,7 +88,6 @@ int umugu_audio_backend_play(int milliseconds) {
         sig->sample_data = (void *)samples;
         sig->count = frame_count;
 
-        umugu_newframe();
         for (int i = 0; i < ctx->pipeline.node_count; ++i) {
             umugu_node_dispatch(ctx->pipeline.nodes[0], UMUGU_FN_PROCESS);
         }

@@ -73,8 +73,7 @@ enum umugu_midi_message_ids {
 
 static int um__pm_initialized = 0;
 
-// static inline int umugu_midi_event_status_channel(int msg) { return msg &
-// 0xF; }
+static inline int umugu_midi_event_status_channel(int msg) { return msg & 0xF; }
 static inline int umugu_midi_event_status_status(int msg) { return msg & 0xF0; }
 // static inline int umugu_midi_event_byte0(int msg) { return msg & 0xFF; }
 static inline int umugu_midi_event_byte1(int msg) { return (msg >> 8) & 0xFF; }
@@ -89,17 +88,22 @@ static inline int umugu_ctrl_midi_decode(int32_t msg) {
     switch (status) {
     case UMUGU_MIDI_NOTE_OFF: {
         int note = umugu_midi_event_byte1(msg);
-        ctrl->notes[note]--;
+        if (umugu_midi_event_status_channel(msg) == 0x9) {
+            ctrl->drums[note - 35] = 0;
+        } else {
+            ctrl->notes[note] = 0;
+        }
+
         return UMUGU_SUCCESS;
     }
 
     case UMUGU_MIDI_NOTE_ON: {
         int note = umugu_midi_event_byte1(msg);
         int vel = umugu_midi_event_byte2(msg);
-        if (vel) {
-            ctrl->notes[note]++;
+        if (umugu_midi_event_status_channel(msg) == 0x9) {
+            ctrl->drums[note - 35] = vel;
         } else {
-            ctrl->notes[note]--;
+            ctrl->notes[note] = vel;
         }
         return UMUGU_SUCCESS;
     }
@@ -109,54 +113,47 @@ static inline int umugu_ctrl_midi_decode(int32_t msg) {
         int value = umugu_midi_event_byte2(msg);
         switch (ctrl_idx) {
         case 0x07: {
-            ctrl->values[UMUGU_CTRL_VOLUME] &= 0x7F;
-            ctrl->values[UMUGU_CTRL_VOLUME] |= (value << 7);
+            ctrl->values[UMUGU_CTRL_VOLUME] = value;
             break;
         }
 
-        case 0x27: {
-            ctrl->values[UMUGU_CTRL_VOLUME] &= 0x3F80;
-            ctrl->values[UMUGU_CTRL_VOLUME] |= value;
+        case 0x0C: {
+            ctrl->values[UMUGU_CTRL_FX1] = value;
             break;
         }
 
-        case 0x30: {
-            ctrl->values[UMUGU_CTRL_1] &= 0x3F80;
-            ctrl->values[UMUGU_CTRL_1] |= value;
+        case 0x0D: {
+            ctrl->values[UMUGU_CTRL_FX2] = value;
             break;
         }
 
-        case 0x31: {
-            ctrl->values[UMUGU_CTRL_2] &= 0x3F80;
-            ctrl->values[UMUGU_CTRL_2] |= value;
+        case 0x0E: {
+            ctrl->values[UMUGU_CTRL_5] = value;
             break;
         }
 
-        case 0x32: {
-            ctrl->values[UMUGU_CTRL_3] &= 0x3F80;
-            ctrl->values[UMUGU_CTRL_3] |= value;
+        case 0x0F: {
+            ctrl->values[UMUGU_CTRL_6] = value;
             break;
         }
 
-        case 0x33: {
-            ctrl->values[UMUGU_CTRL_4] &= 0x3F80;
-            ctrl->values[UMUGU_CTRL_4] |= value;
+        case 0x10: {
+            ctrl->values[UMUGU_CTRL_1] = value;
             break;
         }
 
-        case 0x42: {
-            ctrl->flags &= ~UMUGU_CTRL_FLAG_SOSTENUTO;
-            if (value >> 6) {
-                ctrl->flags |= UMUGU_CTRL_FLAG_SOSTENUTO;
-            }
+        case 0x11: {
+            ctrl->values[UMUGU_CTRL_2] = value;
             break;
         }
 
-        case 0x43: {
-            ctrl->flags &= ~UMUGU_CTRL_FLAG_SOFT_PEDAL;
-            if (value >> 6) {
-                ctrl->flags |= UMUGU_CTRL_FLAG_SOFT_PEDAL;
-            }
+        case 0x12: {
+            ctrl->values[UMUGU_CTRL_3] = value;
+            break;
+        }
+
+        case 0x13: {
+            ctrl->values[UMUGU_CTRL_4] = value;
             break;
         }
 
@@ -180,16 +177,28 @@ static inline int umugu_ctrl_midi_decode(int32_t msg) {
             break;
         }
 
-        case 0x79: { /* Reset all controllers. */
-            assert(value == 0 && "MIDI spec");
-            memset(ctrl->values, 0, sizeof(ctrl->values));
-            ctrl->flags = 0;
+        case 0x4A: {
+            ctrl->values[UMUGU_CTRL_BRIGHTNESS] = value;
             break;
         }
 
-        case 0x7B: { /* All notes off. */
-            assert(value == 0 && "MIDI spec");
-            memset(ctrl->notes, 0, sizeof(ctrl->notes));
+        case 0x4B: {
+            ctrl->values[UMUGU_CTRL_SOUND_6] = value;
+            break;
+        }
+
+        case 0x4C: {
+            ctrl->values[UMUGU_CTRL_SOUND_7] = value;
+            break;
+        }
+
+        case 0x4D: {
+            ctrl->values[UMUGU_CTRL_SOUND_8] = value;
+            break;
+        }
+
+        case 0x5D: {
+            ctrl->values[UMUGU_CTRL_CHORUS_DEPTH] = value;
             break;
         }
         }
@@ -224,6 +233,8 @@ int umugu_ctrl_midi_init(void) {
     if (*ctrl->device_name != 0) {
         for (int i = 0; i < Pm_CountDevices(); ++i) {
             const PmDeviceInfo *info = Pm_GetDeviceInfo(i);
+            ctx->io.log("Midi device: %s %s.\n", info->name,
+                        info->input ? "Input" : "Output");
             if (info->input && !strcmp(ctrl->device_name, info->name)) {
                 ctrl->device_idx = i;
             }
@@ -289,22 +300,12 @@ int umugu_ctrl_midi_close(void) {
 
 int umugu_ctrl_midi_init(void) {
     umugu_ctx *ctx = umugu_get_context();
-    if (ctx->conf.flags & UMUGU_CONFIG_VERBOSE) {
-        ctx->io.log("Trying to initialize the MIDI interface with "
-                    "UMUGU_DISABLE_MIDI defined. Ignoring call...\n");
-    }
+    ctx->io.log("Trying to initialize the MIDI interface with "
+                "UMUGU_DISABLE_MIDI defined. Ignoring call...\n");
     return UMUGU_NOOP;
 }
 
-int umugu_ctrl_midi_update(void) {
-    umugu_ctx *ctx = umugu_get_context();
-    if (ctx->conf.flags & UMUGU_CONFIG_VERBOSE) {
-        ctx->io.log("Trying to update the MIDI controller with "
-                    "UMUGU_DISABLE_MIDI defined. Ignoring call... \n");
-    }
-    return UMUGU_NOOP;
-}
-
+int umugu_ctrl_midi_update(void) { return UMUGU_NOOP; }
 int umugu_ctrl_midi_close(void) { return UMUGU_NOOP; }
 
 #endif /* UMUGU_DISABLE_MIDI */

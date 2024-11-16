@@ -9,6 +9,8 @@ PointerAlignment: Right
 ReferenceAlignment: Pointer
 RemoveParentheses: MultipleParentheses
 RemoveSemicolon: true
+AlwaysBreakAfterReturnType: TopLevelDefinitions
+BreakBeforeBraces: Linux
 
 IncludeBlocks: Regroup
 IncludeCategories:

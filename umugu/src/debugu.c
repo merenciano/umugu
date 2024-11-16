@@ -39,10 +39,9 @@ static inline void um__var_print(const umugu_var_info *vi, void *node) {
 int umugu_node_print(umugu_node *node) {
     umugu_ctx *ctx = umugu_get_context();
     int (*log)(const char *fmt, ...) = ctx->io.log;
-    const umugu_node_info *info = &ctx->nodes_info[node->info_idx];
+    const umugu_node_info *info = &ctx->nodes_info[node->type];
     log("Name: %s.\n", info->name.str);
-    log("In pipe: %d.\n", node->in_pipe_node);
-
+    log("In pipe: %d.\n", node->prev_node);
     log("Variables:\n");
     for (int i = 0; i < info->var_count; ++i) {
         um__var_print(info->vars + i, node);
@@ -72,6 +71,7 @@ int umugu_mem_arena_print(void) {
     if (ctx->arena.temp_next < ctx->arena.pers_next) {
         ctx->arena.temp_next = ctx->arena.pers_next;
     }
+
     log("\n # MEMORY ARENA # \n");
     log("The values are offsets (bytes) in the arena buffer.\n");
     log("Persistent: %ld\n", ctx->arena.pers_next - ctx->arena.buffer);
@@ -79,7 +79,6 @@ int umugu_mem_arena_print(void) {
         ctx->arena.temp_next - ctx->arena.buffer,
         ctx->arena.temp_next - ctx->arena.pers_next);
     log("Capacity: %d\n", ctx->arena.capacity);
-
     log("Data after temporal ptr:");
     for (uint64_t *it = (void *)ctx->arena.temp_next;
          it < (uint64_t *)(ctx->arena.buffer + ctx->arena.capacity) &&
@@ -113,12 +112,14 @@ static inline const char *um__type_name(int type) {
 
 static inline void um__generic_signal_print(umugu_generic_signal *sig) {
     int (*log)(const char *fmt, ...) = umugu_get_context()->io.log;
-    log("Enabled: %s.\n", sig->flags & UMUGU_SIGNAL_ENABLED ? "true" : "false");
+    const char *enab = sig->flags & UMUGU_SIGNAL_ENABLED ? "true" : "false";
+    const char *intr = sig->flags & UMUGU_SIGNAL_INTERLEAVED ? "true" : "false";
+
+    log("Enabled: %s.\n", enab);
     log("Type: %s (%d).\n", um__type_name(sig->type), sig->type);
     log("Sample rate: %d.\n", sig->rate);
     log("Channels: %d.\n", sig->channels);
-    log("Interleaved: %s.\n",
-        sig->flags & UMUGU_SIGNAL_INTERLEAVED ? "true" : "false");
+    log("Interleaved: %s.\n", intr);
 }
 
 int umugu_in_signal_print(void) {

@@ -2,25 +2,18 @@
                                u   mu         gu
     "Venga, a ver si te buscas una musiquilla guapa, ¿no colega?" - El Pirri.
 
-    TODO(Err)
-    TODO(qol)
-    TODO(Input):
-        - Support different variable types and arrays (count).
     TODO:
+        - stdbool.h
         - Rename in symbols: var -> attribute
-        - Make it work using int16 or even uint8, instead of float32. I want
-          this to work on a ESP32.
         - Simple and performant hash for umugu_name to be used as a key in
           associative containers (although I'm quite sure that linear search
           over contiguous data using 1 memcmp per node is probably faster with
           the few elements that this library usually has).
-        - Conversions between signal configurations.
         - Sanitize build config.
         - Profiling build config.
         - Doxygen.
         - Sample rate conversions.
-        - File players for compressed formats.
-        - Organize all the config and decide how it's done. File? Defines?
+        - Write config file parser (probably .ini)
 */
 
 #ifndef __UMUGU_H__
@@ -29,43 +22,49 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define UMUGU_VERSION_MAJOR 0
-#define UMUGU_VERSION_MINOR 7
-#define UMUGU_VERSION_PATCH 0
-
+/*
+    BUILD OPTIONS
+    Keeping them here in the header for convenience and documentation
+    but should be defined by the build system.
+*/
 /* #define UMUGU_DISABLE_MIDI */
+#define UMUGU_DEBUG
+#define UMUGU_TRACE
+#define UMUGU_VERBOSE
 
-#ifndef UMUGU_SAMPLE_RATE
-#define UMUGU_SAMPLE_RATE 48000
-#endif
-
-#ifndef UMUGU_NAME_LEN
+/* INTERNAL DEFS. Changing them can break things. */
 #define UMUGU_NAME_LEN 32
-#endif
 
-#ifndef UMUGU_PATH_LEN
+/* I would like to make it configurable in case larger paths are needed, but
+ * changing it breaks ABI compatibility without changing version. */
 #define UMUGU_PATH_LEN 64
-#endif
 
-#ifndef UMUGU_DEFAULT_NODE_INFO_CAPACITY
+/* TODO: Remove this. Use permanent allocations from the arena instead. */
 #define UMUGU_DEFAULT_NODE_INFO_CAPACITY 64
-#endif
-
 #define UMUGU_NOTE_COUNT 128
+#define UMUGU_DRUM_COUNT 47
+#define UMUGU_MIXER_MAX_INPUTS 8
+
+#define UMUGU_VERSION_MAJOR 0
+#define UMUGU_VERSION_MINOR 9
+#define UMUGU_VERSION_PATCH 0
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+typedef struct umugu_ctx umugu_ctx;
+
 enum {
+    /** Invalid state for variables used as index/offset. */
     UMUGU_BADIDX = -1,
-    /* Generic unspecified value. */
+    /** Generic unspecified value. */
     UMUGU_NONE = 0,
 
-    /* Obtained from funcions that have returned along the normal path. */
+    /** Obtained from funcions that have returned along the normal path. */
     UMUGU_SUCCESS,
 
-    /* No operation. Usually returned by redundant calls.
+    /** No operation. Usually returned by redundant calls.
      * Not an error since the expected result was already met. */
     UMUGU_NOOP,
 
@@ -81,19 +80,22 @@ enum {
     UMUGU_ERR,
 };
 
-enum {
-    UMUGU_SIGNAL_ENABLED = 0x0001,
-    UMUGU_SIGNAL_INTERLEAVED = 0x0002,
-};
-
 /* Default sample type for the audio pipeline. This type will be used for
  * representing the amplitude (wave) values of an audio signal.
  * In umugu_signal and other data structs is represented as UMUGU_TYPE_FLOAT. */
 typedef float umugu_sample;
 
+enum {
+    UMUGU_SIGNAL_ENABLED = 0x0001,
+    UMUGU_SIGNAL_INTERLEAVED = 0x0002,
+};
+
 /**
- * Audio signal for internal usage (fixed format that pipeline nodes use).
- * @note For I/O audio signals @see umugu_generic_signal.
+ * @brief Audio signal with fixed format for internal pipeline processing.
+ * Float32 sample format.
+ * Non interleaved channels. The amount varies according to the node type.
+ * Sample rate is 48000 by default (@see umugu_config.sample_rate).
+ * @note For I/O audio configurable signals @see umugu_generic_signal.
  */
 typedef struct umugu_signal {
     /**
@@ -102,38 +104,37 @@ typedef struct umugu_signal {
      * @code{.c}
      * size_t Capacity = frames * channels * sizeof(umugu_sample);
      * @endcode
-     * @note The channel samples are not interleaved.
      */
     umugu_sample *samples;
     int32_t count;    /** Number of sample values per channel, i.e. frames. */
     int32_t channels; /** Number of channels in the signal. */
 } umugu_signal;
 
-/* Generic audio signal. It can be a whole song or a small chunk for the output
- * stream, or a buffer for visual debugging by plotting its frames.
- * This struct also contains all the required data to play the audio
- * correctly or convert the signal to another format. */
+/** Generic audio signal. It can be a whole song or a small chunk for the output
+ *  stream, or a buffer for visual debugging by plotting its frames.
+ *  This struct also contains all the required data to play the audio
+ *  correctly or convert the signal to another format.
+ *  @note The memory layout is compatible with umugu_signal in case it is
+ *  convenient to cast between pointers.
+ */
 typedef struct umugu_generic_signal {
     void *sample_data;
     int32_t count;    /* number of samples per channel (frames) in the signal */
     int32_t channels; /* number of channels, e.g. 2 for stereo */
     int32_t rate;     /* samples per sec */
     int16_t type;     /* sample data type, UMUGU_TYPE_ */
-    int16_t flags;    /* config and status, UMUGU_SIGNAL_  */
+    uint16_t flags;   /* config and status, UMUGU_SIGNAL_  */
 } umugu_generic_signal;
 
 enum {
-    UMUGU_WAVEFORM_SINE = 0,
-    UMUGU_WAVEFORM_SAW,
-    UMUGU_WAVEFORM_SQUARE,
-    UMUGU_WAVEFORM_TRIANGLE,
-    UMUGU_WAVEFORM_WHITE_NOISE,
-    UMUGU_WAVEFORM_COUNT
+    UMUGU_WAVE_SINE = 0,
+    UMUGU_WAVE_SAWSIN,
+    UMUGU_WAVE_SAW,
+    UMUGU_WAVE_TRIANGLE,
+    UMUGU_WAVE_SQUARE,
+    UMUGU_WAVE_WHITE_NOISE,
+    UMUGU_WAVE_COUNT
 };
-
-/* Look-up table with waveform signals. TODO: mmap binary file instead of
- * compiling .c */
-extern const float umugu_waveform_lut[UMUGU_WAVEFORM_COUNT][UMUGU_SAMPLE_RATE];
 
 /* Node virtual functions. */
 enum { UMUGU_FN_INIT, UMUGU_FN_DEFAULTS, UMUGU_FN_PROCESS, UMUGU_FN_RELEASE };
@@ -162,6 +163,10 @@ enum umugu_types_e {
     UMUGU_TYPE_FLOAT,
     UMUGU_TYPE_INT64,
     UMUGU_TYPE_INT8,
+    UMUGU_TYPE_UINT16,
+    UMUGU_TYPE_UINT32,
+    UMUGU_TYPE_UINT64,
+    UMUGU_TYPE_DOUBLE,
     UMUGU_TYPE_TEXT,
     UMUGU_TYPE_BOOL,
     UMUGU_TYPE_COUNT
@@ -201,11 +206,11 @@ typedef struct {
  * data member of the struct. The name is enough for obtaining its associated
  * metadata (see: umugu_node_info) and then the offsets to the interface. */
 typedef struct umugu_node {
-    int16_t info_idx;
-    int16_t in_pipe_node;
-    int8_t in_pipe_channel;
-    int8_t padding[3];
     umugu_signal out_pipe;
+    uint8_t type; /* Index in node_info */
+    int8_t input_channel;
+    uint16_t prev_node; /* Index in pipeline of the previous node. */
+    uint32_t iteration;
 } umugu_node;
 
 typedef int (*umugu_node_fn)(umugu_node *);
@@ -224,36 +229,35 @@ typedef struct {
 } umugu_node_info;
 
 enum umugu_ctrl_e {
+    UMUGU_CTRL_FX1,
+    UMUGU_CTRL_FX2,
+    UMUGU_CTRL_5,
+    UMUGU_CTRL_6,
     UMUGU_CTRL_1,
     UMUGU_CTRL_2,
     UMUGU_CTRL_3,
     UMUGU_CTRL_4,
-    UMUGU_CTRL_5,
-    UMUGU_CTRL_6,
-    UMUGU_CTRL_7,
-    UMUGU_CTRL_8,
     UMUGU_CTRL_VARIATION,
     UMUGU_CTRL_TIMBRE,
     UMUGU_CTRL_RELEASE_TIME,
     UMUGU_CTRL_ATTACK_TIME,
+    UMUGU_CTRL_BRIGHTNESS,
+    UMUGU_CTRL_SOUND_6,
+    UMUGU_CTRL_SOUND_7,
+    UMUGU_CTRL_SOUND_8,
     UMUGU_CTRL_VOLUME,
     UMUGU_CTRL_PITCHWHEEL,
+    UMUGU_CTRL_CHORUS_DEPTH,
     UMUGU_CTRL_COUNT
-};
-
-enum umugu_ctrl_flags {
-    UMUGU_CTRL_FLAG_NONE = 0,
-    UMUGU_CTRL_FLAG_SOSTENUTO = 1 << 0,
-    UMUGU_CTRL_FLAG_SOFT_PEDAL = 1 << 1,
 };
 
 typedef struct {
     int8_t notes[UMUGU_NOTE_COUNT];
-    int16_t values[UMUGU_CTRL_COUNT];
-    int32_t flags;
-
+    int8_t drums[UMUGU_DRUM_COUNT];
+    int8_t values[UMUGU_CTRL_COUNT];
     int32_t device_idx;
     char device_name[UMUGU_PATH_LEN];
+
     void *data_stream;
 } umugu_ctrl;
 
@@ -267,10 +271,18 @@ typedef struct {
     int64_t node_count;
 } umugu_pipeline;
 
+enum umugu_events_e {
+    UMUGU_EVENT_INIT_FINISHED,
+    UMUGU_EVENT_PIPELINE_PROCESS_STARTED,
+    UMUGU_EVENT_PIPELINE_PROCESS_FINISHED,
+    UMUGU_EVENT_CONTRO
+};
+
 /* Input and output abstraction.
  * Communication layer between umugu and platform implementations. */
 typedef struct {
     int (*log)(const char *fmt, ...);
+    void (*event_listener)(umugu_ctx *ctx, int event);
 
     umugu_ctrl controller;
     umugu_generic_signal in_audio;
@@ -281,8 +293,8 @@ typedef struct {
      * WRITE: Umugu. */
     umugu_generic_signal out_audio;
 
-    void *user_data;
     void *backend_data;
+    void *user_data;
 } umugu_io;
 
 typedef struct {
@@ -341,7 +353,6 @@ enum umugu_cfg_flags_e {
     UMUGU_CONFIG_VERBOSE, /* Enable verbose logs. */
     UMUGU_CONFIG_DEBUG,   /* Enable runtime checks and asserts. */
     UMUGU_CONFIG_TRACE,   /* Enable trace report generation. */
-    UMUGU_CONFIG_PROFILE, /* Enable performance timers. */
 
     /* Automatic scan and connection of midi controllers at startup. */
     UMUGU_CONFIG_SCAN_MIDI_AUTO,
@@ -356,9 +367,10 @@ typedef struct {
     char default_audio_file[UMUGU_PATH_LEN];
     char default_midi_device[UMUGU_PATH_LEN]; /* Minilab3 Minilab3 MIDI */
     umugu_name fallback_pipeline_nodes[8];
+    int32_t sample_rate;
 } umugu_config;
 
-typedef struct umugu_ctx {
+struct umugu_ctx {
     /* Configuration variables. */
     umugu_config config;
 
@@ -372,18 +384,19 @@ typedef struct umugu_ctx {
     umugu_node_info nodes_info[UMUGU_DEFAULT_NODE_INFO_CAPACITY];
     int32_t nodes_info_next;
 
-    /* Duration of the configuration load in nanoseconds. */
+    /** Counter that increases for each @ref umugu_produce_signal call. */
+    int64_t pipeline_iteration;
+    /** Duration of the configuration load in nanoseconds. */
     int64_t init_time_ns;
-    /* Duration of the pipeline import or generation in nanoseconds. */
+    /** Duration of the pipeline import or generation in nanoseconds. */
     int64_t pipeline_load_time_ns;
-    /* Duration of the last controller update in nanoseconds. */
+    /** Duration of the last controller update in nanoseconds. */
     int64_t controller_update_time_ns;
-    /* Duration of the last pipeline pass in nanoseconds. */
+    /** Duration of the last pipeline pass in nanoseconds. */
     int64_t pipeline_update_time_ns;
-} umugu_ctx;
+};
 
 int umugu_init(void);
-int umugu_newframe(void);
 
 /* Updates the audio output signal.
  * Populates the audio output signal with generated samples from the pipeline.
@@ -420,10 +433,6 @@ void umugu_unplug(umugu_node_info *info);
  * @param fn Function identifier, valid definitions are prefixed with UMUGU_FN_.
  * Return UMUGU_SUCCESS if the call is performed and UMUGU_ERR otherwise. */
 int umugu_node_dispatch(umugu_node *node, int fn);
-
-/* Gets the node info from context's node infos.
- * Return a pointer to the node info in the context or NULL if not found. */
-const umugu_node_info *umugu_node_info_find(const umugu_name *name);
 
 /* Search the node name in the built-in nodes and add the node info to
  * the context. If there is no built-in node with that name, looks for

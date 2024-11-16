@@ -1,29 +1,35 @@
-#include "builtin_nodes.h"
 #include "umugu.h"
+#include "umugu_internal.h"
 
 #include <assert.h>
 
-static inline int um__init(umugu_node *node) {
+static inline int
+um__init(umugu_node *node)
+{
     node->out_pipe.samples = NULL;
     node->out_pipe.count = 0;
     return UMUGU_SUCCESS;
 }
 
-static inline int um__defaults(umugu_node *node) {
-    um__amplitude *self = (void *)node;
+static inline int
+um__defaults(umugu_node *node)
+{
+    um_amplitude *self = (void *)node;
     self->multiplier = 1.0f;
     return UMUGU_SUCCESS;
 }
 
-static inline int um__process(umugu_node *node) {
+static inline int
+um__process(umugu_node *node)
+{
     if (node->out_pipe.samples) {
         return UMUGU_NOOP;
     }
 
     umugu_ctx *ctx = umugu_get_context();
-    um__amplitude *self = (void *)node;
+    um_amplitude *self = (void *)node;
 
-    umugu_node *input = ctx->pipeline.nodes[node->in_pipe_node];
+    umugu_node *input = ctx->pipeline.nodes[node->prev_node];
     if (!input->out_pipe.samples) {
         umugu_node_dispatch(input, UMUGU_FN_PROCESS);
         assert(input->out_pipe.samples);
@@ -41,7 +47,9 @@ static inline int um__process(umugu_node *node) {
     return UMUGU_SUCCESS;
 }
 
-umugu_node_fn um__amplitude_getfn(umugu_fn fn) {
+umugu_node_fn
+um_amplitude_getfn(umugu_fn fn)
+{
     switch (fn) {
     case UMUGU_FN_INIT:
         return um__init;
