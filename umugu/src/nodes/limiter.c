@@ -1,10 +1,11 @@
+#include "umugu.h"
 #include "umugu_internal.h"
 
 #include <assert.h>
 #include <math.h>
 
 static inline int
-um__init(umugu_node *node)
+um_limiter_init(umugu_node *node)
 {
     node->out_pipe.samples = NULL;
     node->out_pipe.count = 0;
@@ -12,7 +13,7 @@ um__init(umugu_node *node)
 }
 
 static inline int
-um__defaults(umugu_node *node)
+um_limiter_defaults(umugu_node *node)
 {
     um_limiter *self = (void *)node;
     self->min = -1.0f;
@@ -21,21 +22,12 @@ um__defaults(umugu_node *node)
 }
 
 static inline int
-um__process(umugu_node *node)
+um_limiter_process(umugu_node *node)
 {
-    if (node->out_pipe.samples) {
-        return UMUGU_NOOP;
-    }
-
-    umugu_ctx *ctx = umugu_get_context();
+    um_node_check_iteration(node);
     um_limiter *self = (void *)node;
 
-    umugu_node *input = ctx->pipeline.nodes[node->prev_node];
-    if (!input->out_pipe.samples) {
-        umugu_node_dispatch(input, UMUGU_FN_PROCESS);
-        assert(input->out_pipe.samples);
-    }
-
+    const umugu_node *input = um_node_get_input(node);
     node->out_pipe.channels = input->out_pipe.channels;
     umugu_sample *out = umugu_alloc_signal(&node->out_pipe);
 
@@ -44,6 +36,7 @@ um__process(umugu_node *node)
         out[i] = fmax(input->out_pipe.samples[i], self->min);
     }
 
+    node->iteration = umugu_get_context()->pipeline_iteration;
     return UMUGU_SUCCESS;
 }
 
@@ -52,11 +45,11 @@ um_limiter_getfn(umugu_fn fn)
 {
     switch (fn) {
     case UMUGU_FN_INIT:
-        return um__init;
+        return um_limiter_init;
     case UMUGU_FN_DEFAULTS:
-        return um__defaults;
+        return um_limiter_defaults;
     case UMUGU_FN_PROCESS:
-        return um__process;
+        return um_limiter_process;
     default:
         return NULL;
     }

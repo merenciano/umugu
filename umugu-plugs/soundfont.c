@@ -14,12 +14,15 @@ typedef struct {
 } um_sf;
 
 static inline int um_init(umugu_node *node) {
-    um_sf *self = (void *)node;
-    memset(&self->settings, 0, sizeof(intptr_t) * 4);
-
-    strncpy(self->soundfont_file,
-            umugu_get_context()->config.default_audio_file, UMUGU_PATH_LEN);
     umugu_ctx *ctx = umugu_get_context();
+    um_sf *self = (void *)node;
+    self->settings = NULL;
+    self->synth = NULL;
+    self->midi = NULL;
+    self->audio = NULL;
+
+    strncpy(self->soundfont_file, ctx->config.default_audio_file,
+            UMUGU_PATH_LEN);
     node->out_pipe.channels = 2;
 
     self->settings = new_fluid_settings();
@@ -76,10 +79,10 @@ int um_process(umugu_node *node) {
         return UMUGU_NOOP;
     }
 
-    umugu_sample *out = umugu_alloc_signal(&node->out_pipe);
-    memset(out, 0,
-           sizeof(*out) * node->out_pipe.count * node->out_pipe.channels);
-    assert(node->out_pipe.channels == 2);
+    umugu_signal *pip = &node->out_pipe;
+    umugu_sample *out = umugu_alloc_signal(pip);
+    memset(out, 0, sizeof(*out) * pip->count * pip->channels);
+    assert(pip->channels == 2);
     umugu_sample *fx[2], *dry[2];
     fx[0] = out;
     dry[0] = out;
@@ -114,7 +117,10 @@ int um_release(umugu_node *node) {
         delete_fluid_settings(self->settings);
     }
 
-    memset(&self->settings, 0, sizeof(intptr_t) * 4);
+    self->settings = NULL;
+    self->synth = NULL;
+    self->midi = NULL;
+    self->audio = NULL;
 
     return UMUGU_SUCCESS;
 }

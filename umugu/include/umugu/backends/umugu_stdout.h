@@ -31,7 +31,9 @@ typedef struct {
     int32_t data_size;
 } wav_header;
 
-static inline int um__type_size(int type) {
+static inline int
+um__type_size(int type)
+{
     switch (type) {
     case UMUGU_TYPE_UINT8:
         return 1;
@@ -47,7 +49,9 @@ static inline int um__type_size(int type) {
     }
 }
 
-void um__write_wav_header(size_t wav_data_size) {
+void
+um__write_wav_header(size_t wav_data_size)
+{
     umugu_ctx *ctx = umugu_get_context();
     umugu_generic_signal *sig = &ctx->io.out_audio;
     wav_header hdr = {
@@ -70,7 +74,9 @@ void um__write_wav_header(size_t wav_data_size) {
     fwrite(&hdr, sizeof(hdr), 1, stdout);
 }
 
-int umugu_audio_backend_play(int milliseconds) {
+int
+umugu_audio_backend_play(int milliseconds)
+{
     enum { SAMPLE_COUNT = 2048 };
     char samples[SAMPLE_COUNT * 4];
 
@@ -88,10 +94,13 @@ int umugu_audio_backend_play(int milliseconds) {
         sig->sample_data = (void *)samples;
         sig->count = frame_count;
 
+        umugu_produce_signal();
+#if 0
         for (int i = 0; i < ctx->pipeline.node_count; ++i) {
             umugu_node_dispatch(ctx->pipeline.nodes[0], UMUGU_FN_PROCESS);
         }
 
+#endif
         fwrite(samples, frame_count * um__type_size(sig->type) * sig->channels,
                1, stdout);
     }

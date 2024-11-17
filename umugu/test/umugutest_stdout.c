@@ -3,11 +3,14 @@
 #include <umugu/backends/umugu_stdout.h>
 
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 
 static const umugu_name NODES[] = {{.str = "WavFilePlayer"}, {.str = "Output"}};
 
-int main(void) {
+int
+main(void)
+{
     umugu_ctx *ctx = umugu_get_context();
     ctx->io.log = printf;
     char arena[999999];
@@ -17,6 +20,8 @@ int main(void) {
     ctx->io.out_audio.rate = 48000;
     ctx->io.out_audio.type = UMUGU_TYPE_FLOAT;
     ctx->io.in_audio.flags = 0;
+
+    strcpy(ctx->config.default_audio_file, "../assets/audio/littlewing.wav");
 
     umugu_pipeline_generate(NODES, sizeof(NODES) / sizeof(*NODES));
     umugu_audio_backend_play(60000);

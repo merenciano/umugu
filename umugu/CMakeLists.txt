@@ -13,6 +13,12 @@ target_compile_options(umugu PRIVATE
     -fPIC
 )
 
+target_compile_definitions(umugu PUBLIC
+    UMUGU_VERBOSE
+    UMUGU_DEBUG
+    UMUGU_TRACE
+)
+
 target_include_directories(umugu PRIVATE 
     ${CMAKE_CURRENT_SOURCE_DIR}/include/umugu
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/include

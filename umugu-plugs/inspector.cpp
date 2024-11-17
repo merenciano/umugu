@@ -1,7 +1,3 @@
-/*
- * Used to test user-defined nodes written in c++.
- */
-
 #include <umugu/umugu.h>
 
 #include <assert.h>

@@ -5,12 +5,28 @@
 #include <string.h>
 
 static inline int
-um__init(umugu_node *node)
+um_wavplayer_defaults(umugu_node *node)
+{
+    um_wavplayer *self = (void *)node;
+    umugu_ctx *ctx = umugu_get_context();
+    if (!*ctx->config.default_audio_file) {
+        strncpy(self->filename, "../assets/audio/pirri.wav", 64);
+    } else {
+        strncpy(self->filename, ctx->config.default_audio_file, 64);
+    }
+    return UMUGU_SUCCESS;
+}
+
+static inline int
+um_wavplayer_init(umugu_node *node)
 {
     umugu_ctx *ctx = umugu_get_context();
     um_wavplayer *self = (um_wavplayer *)node;
     node->out_pipe.samples = NULL;
 
+    if (!*self->filename) {
+        um_wavplayer_defaults(node);
+    }
     self->file_handle = fopen(self->filename, "rb");
     if (!self->file_handle) {
         ctx->io.log("Couldn't open %s\n", self->filename);
@@ -48,17 +64,9 @@ um__init(umugu_node *node)
     return UMUGU_SUCCESS;
 }
 
-static inline int
-um__defaults(umugu_node *node)
-{
-    um_wavplayer *self = (void *)node;
-    strncpy(self->filename, "../assets/audio/pirri.wav", 64);
-    return UMUGU_SUCCESS;
-}
-
 /* TODO: Implement this node type mmapping the wav. */
 static inline int
-um__process(umugu_node *node)
+um_wavplayer_process(umugu_node *node)
 {
     umugu_ctx *ctx = umugu_get_context();
     if (node->iteration >= ctx->pipeline_iteration) {
@@ -87,6 +95,10 @@ um__process(umugu_node *node)
     for (int i = 0; i < count; ++i) {
         for (int ch = 0; ch < node->out_pipe.channels; ++ch) {
             out[ch * count + i] = um_generic_signal_samplef(&self->wav, i, ch);
+            ctx->io.log("{%.2f, %.2f} ");
+            if (!ch && !(i % 6)) {
+                printf("\n");
+            }
         }
     }
 
@@ -94,8 +106,8 @@ um__process(umugu_node *node)
     return UMUGU_SUCCESS;
 }
 
-static int
-um__destroy(umugu_node *node)
+static inline int
+um_wavplayer_destroy(umugu_node *node)
 {
     um_wavplayer *self = (void *)node;
     if (self->file_handle) {
@@ -110,13 +122,13 @@ um_wavplayer_getfn(umugu_fn fn)
 {
     switch (fn) {
     case UMUGU_FN_INIT:
-        return um__init;
+        return um_wavplayer_init;
     case UMUGU_FN_DEFAULTS:
-        return um__defaults;
+        return um_wavplayer_defaults;
     case UMUGU_FN_PROCESS:
-        return um__process;
+        return um_wavplayer_process;
     case UMUGU_FN_RELEASE:
-        return um__destroy;
+        return um_wavplayer_destroy;
     default:
         return NULL;
     }

@@ -4,7 +4,7 @@
 #include <assert.h>
 
 static inline int
-um__init(umugu_node *node)
+um_output_init(umugu_node *node)
 {
     node->out_pipe.samples = NULL;
     node->out_pipe.count = 0;
@@ -12,30 +12,11 @@ um__init(umugu_node *node)
 }
 
 static inline int
-um__defaults(umugu_node *node)
-{
-    (void)node;
-    return UMUGU_SUCCESS;
-}
-
-static inline int
-um__process(umugu_node *node)
+um_output_process(umugu_node *node)
 {
     umugu_ctx *ctx = umugu_get_context();
-    if (node->iteration >= ctx->pipeline_iteration) {
-        /* Like the assert below, the pipeline should guarantee
-           this can't happen. */
-        UMUGU_TRAP();
-        return UMUGU_NOOP;
-    }
-
-    umugu_node *input = ctx->pipeline.nodes[node->prev_node];
-    assert(input->iteration > node->iteration);
-#if 0 /* The pipeline should guarantee the correct node processing order. */
-    if (input->iteration <= node->iteration) {
-        umugu_node_dispatch(input, UMUGU_FN_PROCESS);
-    }
-#endif
+    um_node_check_iteration(node);
+    const umugu_node *input = um_node_get_input(node);
 
     umugu_generic_signal sigout = ctx->io.out_audio;
     node->out_pipe.samples = sigout.sample_data;
@@ -150,11 +131,9 @@ um_output_getfn(umugu_fn fn)
 {
     switch (fn) {
     case UMUGU_FN_INIT:
-        return um__init;
-    case UMUGU_FN_DEFAULTS:
-        return um__defaults;
+        return um_output_init;
     case UMUGU_FN_PROCESS:
-        return um__process;
+        return um_output_process;
     default:
         return NULL;
     }

@@ -5,7 +5,7 @@
 #include <string.h>
 
 static inline int
-um__init(umugu_node *node)
+um_piano_init(umugu_node *node)
 {
     um_piano *self = (void *)node;
     node->out_pipe.samples = NULL;
@@ -15,7 +15,7 @@ um__init(umugu_node *node)
 }
 
 static inline int
-um__defaults(umugu_node *node)
+um_piano_defaults(umugu_node *node)
 {
     um_piano *self = (void *)node;
     self->waveform = UMUGU_WAVE_SINE;
@@ -23,21 +23,12 @@ um__defaults(umugu_node *node)
 }
 
 static inline int
-um__process(umugu_node *node)
+um_piano_process(umugu_node *node)
 {
     umugu_ctx *ctx = umugu_get_context();
-    assert(node->iteration < ctx->pipeline_iteration);
+    um_node_check_iteration(node);
 
     um_piano *self = (void *)node;
-    umugu_node *input = ctx->pipeline.nodes[node->prev_node];
-    assert(input->iteration > node->iteration);
-#if 0
-    if (!input->out_pipe.samples) {
-        umugu_node_dispatch(input, UMUGU_FN_PROCESS);
-        assert(input->out_pipe.samples);
-    }
-#endif
-
     umugu_sample *out = umugu_alloc_signal(&node->out_pipe);
     memset(out, 0, sizeof(umugu_sample) * node->out_pipe.count);
     umugu_ctrl *ctrl = &ctx->io.controller;
@@ -71,11 +62,11 @@ um_piano_getfn(umugu_fn fn)
 {
     switch (fn) {
     case UMUGU_FN_INIT:
-        return um__init;
+        return um_piano_init;
     case UMUGU_FN_DEFAULTS:
-        return um__defaults;
+        return um_piano_defaults;
     case UMUGU_FN_PROCESS:
-        return um__process;
+        return um_piano_process;
     default:
         return NULL;
     }

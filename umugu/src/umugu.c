@@ -47,6 +47,9 @@ umugu_node_info_load(const umugu_name *name)
         assert(g_ctx->nodes_info_next < UMUGU_DEFAULT_NODE_INFO_CAPACITY);
         umugu_node_info *info = &g_ctx->nodes_info[g_ctx->nodes_info_next++];
         memcpy(info, bi_info, sizeof(umugu_node_info));
+#ifdef UMUGU_VERBOSE
+        g_ctx->io.log("Built-in node %s loaded.\n", name->str);
+#endif
         return info;
     }
 
@@ -62,18 +65,24 @@ umugu_node_info_load(const umugu_name *name)
     return NULL;
 }
 
-int
+int /* TODO: Move umugu_set_arena and pipeline loading into this func. */
 umugu_init(void)
 {
+    g_ctx->state = UMUGU_STATE_INITIALIZING;
     um_nanosec init_time = um_time_now();
     umugu_ctrl_init();
     g_ctx->init_time_ns = um_time_elapsed(init_time);
+    g_ctx->state = UMUGU_STATE_READY;
+#ifdef UMUGU_VERBOSE
+    g_ctx->io.log("Umugu initialized in %ldns\n", g_ctx->init_time_ns);
+#endif
     return UMUGU_SUCCESS;
 }
 
 int
 umugu_produce_signal(void)
 {
+    g_ctx->state = UMUGU_STATE_REALTIME_PROCESSING;
     /* TODO: Ringbuffer and proper implementation of separate threads with
             unsync callbacks for the midi controller and the audio output
             for example. Right now the init is in this func because
@@ -94,6 +103,7 @@ umugu_produce_signal(void)
     }
 
     g_ctx->pipeline_iteration++;
+    g_ctx->arena.alloc_counter = 0;
     umugu_ctrl_update();
 
     for (int i = 0; i < g_ctx->pipeline.node_count; ++i) {
@@ -107,6 +117,11 @@ umugu_produce_signal(void)
         }
     }
 
+#ifdef UMUGU_VERBOSE
+    g_ctx->io.log("TempAlloc bytes in iteration %d: %ld\n",
+                  g_ctx->pipeline_iteration, g_ctx->arena.alloc_counter);
+#endif
+    g_ctx->state = UMUGU_STATE_LISTENING;
     return UMUGU_SUCCESS;
 }
 
@@ -136,11 +151,22 @@ umugu_set_arena(void *buffer, size_t bytes)
 void *
 umugu_alloc_pers(size_t bytes)
 {
+    if (g_ctx->state > UMUGU_STATE_READY) {
+        g_ctx->io.log("At this point of the execution, every required"
+                      " permanent allocation should have been done yet.\n");
+
+        assert(
+            (g_ctx->state != UMUGU_STATE_REALTIME_PROCESSING) &&
+            "Permanent allocations are not permitted during pipeline "
+            "processing, "
+            "since the temporary allocs are heavily used and the new permanent "
+            "allocations expand the buffer stealing space from that buffer.");
+    }
     umugu_mem_arena *mem = &g_ctx->arena;
     uint8_t *ret = mem->pers_next;
     if ((ret + bytes) > (mem->buffer + mem->capacity)) {
-        umugu_get_context()->io.log("Fatal error: Alloc failed. Not enough "
-                                    "space left in the arena.\n");
+        g_ctx->io.log("Fatal error: Alloc failed. Not enough "
+                      "space left in the arena.\n");
         return NULL;
     }
     mem->pers_next += bytes;
@@ -151,6 +177,14 @@ umugu_alloc_pers(size_t bytes)
 void *
 umugu_alloc_temp(size_t bytes)
 {
+    if (g_ctx->state < UMUGU_STATE_READY) {
+        g_ctx->io.log(
+            "Careful with temporary allocations during"
+            " initialization since the next persistent allocation will "
+            "steal that region. It is OK for local use but are you sure"
+            " you can not use the stack in this situation?\n");
+    }
+
     umugu_mem_arena *mem = &g_ctx->arena;
     uint8_t *ret =
         mem->temp_next > mem->pers_next ? mem->temp_next : mem->pers_next;
@@ -158,12 +192,14 @@ umugu_alloc_temp(size_t bytes)
         /* Start again: temp memory is used as a circ buffer. */
         ret = mem->pers_next;
         if ((ret + bytes) > (mem->buffer + mem->capacity)) {
-            umugu_get_context()->io.log("Fatal error: Alloc failed. Not enough "
-                                        "space left in the arena.\n");
+            g_ctx->io.log("Fatal error: Alloc failed. Not enough "
+                          "space left in the arena.\n");
             return NULL;
         }
     }
+
     mem->temp_next = ret + bytes;
+    mem->alloc_counter += bytes;
     return ret;
 }
 
@@ -220,6 +256,10 @@ umugu_plug(const umugu_name *name)
     info->vars = *(umugu_var_info **)dlsym(hnd, "vars");
     info->var_count = *(int32_t *)dlsym(hnd, "var_count");
     info->plug_handle = hnd;
+
+#ifdef UMUGU_VERBOSE
+    g_ctx->io.log("Node plugged successfuly: %s\n", name->str);
+#endif
     return g_ctx->nodes_info_next - 1;
 }
 

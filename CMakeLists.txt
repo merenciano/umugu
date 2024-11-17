@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.13)
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 
-set(UM_BUILD_PLUGS)
+set(UM_BUILD_MAKER TRUE)
+set(UM_BUILD_PLUGS TRUE)
 
 project (Umugu VERSION 0.9.0)
 

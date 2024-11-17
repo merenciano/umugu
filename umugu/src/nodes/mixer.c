@@ -4,11 +4,11 @@
 #include <assert.h>
 #include <string.h>
 
-#define EMPTY_COUNT 1024
+#define EMPTY_COUNT 128
 static const umugu_sample EMPTY_SAMPLES[EMPTY_COUNT] = {0};
 
 static inline int
-um__init(umugu_node *node)
+um_mixer_init(umugu_node *node)
 {
     node->out_pipe.samples = NULL;
     node->out_pipe.count = 0;
@@ -18,7 +18,7 @@ um__init(umugu_node *node)
 }
 
 static inline int
-um__defaults(umugu_node *node)
+um_mixer_defaults(umugu_node *node)
 {
     um_mixer *self = (void *)node;
     self->extra_pipe_in_node_idx[0] = 0;
@@ -27,12 +27,9 @@ um__defaults(umugu_node *node)
 }
 
 static inline int
-um__process(umugu_node *node)
+um_mixer_process(umugu_node *node)
 {
-    if (node->out_pipe.samples) {
-        return UMUGU_NOOP;
-    }
-
+    um_node_check_iteration(node);
     umugu_ctx *ctx = umugu_get_context();
     um_mixer *self = (void *)node;
 
@@ -40,11 +37,7 @@ um__process(umugu_node *node)
     const int sample_count = node->out_pipe.count;
     int signals = 0;
 
-    umugu_node *input = ctx->pipeline.nodes[node->prev_node];
-    if (!input->out_pipe.samples) {
-        umugu_node_dispatch(input, UMUGU_FN_PROCESS);
-        assert(input->out_pipe.samples);
-    }
+    const umugu_node *input = um_node_get_input(node);
 
     umugu_sample *in_samples =
         um_signal_get_channel(&input->out_pipe, node->input_channel);
@@ -79,6 +72,7 @@ um__process(umugu_node *node)
         out[i] *= inv_count;
     }
 
+    node->iteration = ctx->pipeline_iteration;
     return UMUGU_SUCCESS;
 }
 
@@ -87,11 +81,11 @@ um_mixer_getfn(umugu_fn fn)
 {
     switch (fn) {
     case UMUGU_FN_INIT:
-        return um__init;
+        return um_mixer_init;
     case UMUGU_FN_DEFAULTS:
-        return um__defaults;
+        return um_mixer_defaults;
     case UMUGU_FN_PROCESS:
-        return um__process;
+        return um_mixer_process;
     default:
         return NULL;
     }

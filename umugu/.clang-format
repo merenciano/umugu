@@ -11,6 +11,7 @@ RemoveParentheses: MultipleParentheses
 RemoveSemicolon: true
 AlwaysBreakAfterReturnType: TopLevelDefinitions
 BreakBeforeBraces: Linux
+BreakStringLiterals: false
 
 IncludeBlocks: Regroup
 IncludeCategories:

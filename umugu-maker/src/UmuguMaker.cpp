@@ -20,8 +20,8 @@
   ImPlot::PopStyleColor()
 
 namespace umumk {
-[[maybe_unused]] const char *const kWaveformNames[] = {"SINE", "SAW", "SQUARE", "TRIANGLE",
-                                                       "WHITE_NOISE"};
+[[maybe_unused]] const char *const kWaveformNames[] = {"SINE",     "SAWSIN", "SAW",
+                                                       "TRIANGLE", "SQUARE", "WHITE_NOISE"};
 
 void UmuguMaker::MainMenu() {
   ImGui::BeginMainMenuBar();
@@ -93,16 +93,21 @@ void UmuguMaker::ToolWindows() {
   }
 
   if (mShowWaveformWindow) {
+#if 0
     ImGui::Begin("Waveform viewer");
     if (ImPlot::BeginPlot("Wave form")) {
-      PLOT_WAVE_SHAPE(UMUGU_WAVEFORM_SINE, 1.0f, 0.0f, 0.0f);
-      PLOT_WAVE_SHAPE(UMUGU_WAVEFORM_SAW, 0.0f, 1.0f, 0.0f);
-      PLOT_WAVE_SHAPE(UMUGU_WAVEFORM_SQUARE, 0.0f, 0.0f, 1.0f);
-      PLOT_WAVE_SHAPE(UMUGU_WAVEFORM_TRIANGLE, 1.0f, 0.0f, 1.0f);
-      PLOT_WAVE_SHAPE(UMUGU_WAVEFORM_WHITE_NOISE, 1.0f, 1.0f, 0.0f);
+      ImPlot::PushStyleColor(ImPlotCol_Line, ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
+      ImPlot::PlotLine(kWaveformNames[UMUGU_WAVE_SINE], umugu_waveform_lut[WS], UMUGU_SAMPLE_RATE);
+      ImPlot::PopStyleColor();
+      PLOT_WAVE_SHAPE(UMUGU_WAVE_SINE, 1.0f, 0.0f, 0.0f);
+      PLOT_WAVE_SHAPE(UMUGU_WAVE_SAW, 0.0f, 1.0f, 0.0f);
+      PLOT_WAVE_SHAPE(UMUGU_WAVE_SQUARE, 0.0f, 0.0f, 1.0f);
+      PLOT_WAVE_SHAPE(UMUGU_WAVE_TRIANGLE, 1.0f, 0.0f, 1.0f);
+      PLOT_WAVE_SHAPE(UMUGU_WAVE_WHITE_NOISE, 1.0f, 1.0f, 0.0f);
       ImPlot::EndPlot();
     }
     ImGui::End();
+#endif
   }
 
   if (mShowDemoWindow) {
@@ -114,16 +119,15 @@ UmuguMaker::UmuguMaker() {
   constexpr size_t Size = 1024 * 1024 * 1024;
   umugu_set_arena(malloc(Size), Size);
   umugu_get_context()->io.log = printf;
+  umugu_get_context()->config.sample_rate = 48000;
 
   umugu_generic_signal *sig = &umugu_get_context()->io.out_audio;
   sig->channels = 2;
   sig->flags = UMUGU_SIGNAL_ENABLED | UMUGU_SIGNAL_INTERLEAVED;
-  sig->rate = UMUGU_SAMPLE_RATE;
+  sig->rate = umugu_get_context()->config.sample_rate;
   sig->type = UMUGU_TYPE_FLOAT;
 
   umugu_audio_backend_init();
-  // umugu_import_pipeline("../assets/pipelines/default.bin");
-
   // umugu_audio_backend_start_stream();
   OpenWindow();
 }

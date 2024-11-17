@@ -28,9 +28,9 @@
     but should be defined by the build system.
 */
 /* #define UMUGU_DISABLE_MIDI */
-#define UMUGU_DEBUG
-#define UMUGU_TRACE
-#define UMUGU_VERBOSE
+// #define UMUGU_DEBUG
+// #define UMUGU_TRACE
+// #define UMUGU_VERBOSE
 
 /* INTERNAL DEFS. Changing them can break things. */
 #define UMUGU_NAME_LEN 32
@@ -302,6 +302,7 @@ typedef struct {
     uint8_t *temp_next;
     uint8_t *pers_next;
     ptrdiff_t capacity; /* In bytes. */
+    ptrdiff_t alloc_counter;
 } umugu_mem_arena;
 
 /* Assigns a memory chunk to the context's arena.
@@ -365,14 +366,129 @@ typedef struct {
     uint64_t flags;
     char default_pipeline_file[UMUGU_PATH_LEN];
     char default_audio_file[UMUGU_PATH_LEN];
-    char default_midi_device[UMUGU_PATH_LEN]; /* Minilab3 Minilab3 MIDI */
+    char default_midi_device[UMUGU_PATH_LEN];
     umugu_name fallback_pipeline_nodes[8];
     int32_t sample_rate;
 } umugu_config;
 
+/**
+ * @brief Identifiers to represent every possible state in which the context
+ * may be in.
+ * The states are used for the implementation of a basic state machine, created
+ * for debugging purposes (since it's pretty useless for release builds).
+ * The aim of the states is to delimit the different stages of execution, which
+ * allows for writing debug checks and provides insight on traces and logs.
+ */
+typedef enum umugu_state {
+
+    /**
+     * @brief The @ref umugu_ctx exists but has not been initialized yet.
+     * This state is valid, as well as useless until @ref umugu_init is called.
+     * Trying to perform any other action will bring problems since being in
+     * this state means that there is no configuration, node infos, pipeline,
+     * memory arena, even the @ref umugu_io::log function is probably missing.
+     * Once the context starts the initialization, there is no way back to this
+     * state.
+     */
+    UMUGU_STATE_UNINITIALIZED = 0,
+
+    /**
+     * @brief Time between the call to @ref umugu_init and returning from
+     * pipeline loading.
+     * This state time is spent setting default values, parsing the config,
+     * loading the pipeline and pairing external controllers.
+     * @note Audio backend initializations and other external dependencies do
+     * not affect this state (only when their streams are bound to umugu,
+     * which triggers the transition from @ref UMUGU_STATE_READY to
+     * @ref UMUGU_STATE_LISTENING).
+     */
+    UMUGU_STATE_INITIALIZING,
+
+    /**
+     * Blocked until some task is assigned.
+     * This usually happens when umugu
+     * finishes its initialization but no stream has been opened for audio
+     * processing. User intervention is required in order to leave this
+     * state (usually starting a realtime stream or requesting audio
+     * playback).
+     * @note From now on, no more persistent memory allocations should be made
+     * in the arena, instead, the remaining space will be used as a ring
+     * buffer offering temporary allocations for frame processing. These
+     * allocations can not be released either, but it must be taken into account
+     * that the buffer must have enough capacity for all the necessary
+     * allocations within a frame. Once the processing is finished, it does not
+     * matter if that memory region gets overwritten in the next frame, since it
+     * is no longer needed (the frame where it was relevant is already playing
+     * through the speakers).
+     * @note There is no technical impediment to keep allocating permament
+     * memory, but there are no good reasons to do so. However, that should be
+     * avoided during pipeline processing because the persistent memory region
+     * will grow by taking up space in the ring buffer, regardless of whether
+     * that memory region has just been allocated and is currently in use.
+     */
+    UMUGU_STATE_READY,
+
+    /**
+     * Blocked, waiting between periodic callbacks or ring buffer locks.
+     * This state implies that there are real-time processes running but
+     * there are no buffers left to process this frame.
+     * It is expected that the state will continuously alternate between this
+     * and @ref UMUGU_STATE_REALTIME_PROCESSING.
+     */
+    UMUGU_STATE_LISTENING,
+
+    /** Busy producing frame audio (iterating the pipeline).
+     *  It is common for the context to constantly alternate between this state
+     *  and @ref UMUGU_STATE_LISTENING while a low latency stream is open,
+     *  since the audio is generated in small batches with high frequency.
+     */
+    UMUGU_STATE_REALTIME_PROCESSING,
+
+    /**
+     * @brief Busy processing whole files, performing conversions or dumping
+     * data into a file.
+     * The context will remain in this state until the processing is complete
+     * or aborted. Then the context returns to @ref UMUGU_STATE_READY or, in
+     * most cases, the program ends since that was its only task.
+     */
+    UMUGU_STATE_NON_REALTIME_PROCESSING,
+
+    /**
+     * @brief This state lasts for the duration of @ref umugu_close.
+     * There is no coming back to any active state once the shutdown is started.
+     * @note Even if you, as a developer, see no point in destroying nicely
+     * every instance allocated when closing the program (I would certainly
+     * rather have the virtual memory manager blow up the entire page in one
+     * fell swoop than wait 4s for everything to be carefully destroyed for no
+     * good reason at all) even then, I strongly recommend destroying umugu and
+     * the audio backend properly, since they use system resources like audio
+     * buffers, streams and devices, which may remaing blocked without a proper
+     * program shutdown, preventing its usage until the affected service
+     * is reloaded or the system rebooted (all bullshit tho, I'm always closing
+     * with ^C and never had any problem).
+     */
+    UMUGU_STATE_SHUTDOWN,
+
+    /**
+     * @brief Context released successfully.
+     * The instance is now useless and should be discarded. This state is
+     * not uncommon for single context apps because in most cases the process
+     * finishes when the shutdown returns.
+     */
+    UMUGU_STATE_TERMINATED,
+
+    /**
+     * @brief Panic mode. Active while dumping debug info somewhere or having
+     * the execution stopped, but if the context reach this state there is
+     * something to fix.
+     */
+    UMUGU_STATE_UNRECOVERABLE
+} umugu_state;
+
 struct umugu_ctx {
     /* Configuration variables. */
     umugu_config config;
+    umugu_state state;
 
     /* Input / output abstraction layer. */
     umugu_io io;
