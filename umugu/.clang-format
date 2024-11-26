@@ -1,9 +1,9 @@
-BasedOnStyle: LLVM
+BasedOnStyle: LLVM 
 TabWidth: 4
 IndentWidth: 4
 InsertNewlineAtEOF: true
 Language: Cpp
-ColumnLimit: 80
+ColumnLimit: 100
 MaxEmptyLinesToKeep: 1
 PointerAlignment: Right
 ReferenceAlignment: Pointer
@@ -12,6 +12,9 @@ RemoveSemicolon: true
 AlwaysBreakAfterReturnType: TopLevelDefinitions
 BreakBeforeBraces: Linux
 BreakStringLiterals: false
+PenaltyIndentedWhitespace: 1000
+PenaltyBreakBeforeFirstCallParameter: 2
+PenaltyBreakComment: 100
 
 IncludeBlocks: Regroup
 IncludeCategories:

@@ -1,38 +1,40 @@
+/* Rename to resample. */
+
 #include "umugu.h"
 #include "umugu_internal.h"
 
 #include <assert.h>
 
 static inline int
-um_output_init(umugu_node *node)
+um_output_init(umugu_ctx *ctx, umugu_node *node, umugu_fn_flags flags)
 {
+    UM_UNUSED(ctx), UM_UNUSED(flags);
     node->out_pipe.samples = NULL;
-    node->out_pipe.count = 0;
+    node->out_pipe.frame_count = 0;
     return UMUGU_SUCCESS;
 }
 
 static inline int
-um_output_process(umugu_node *node)
+um_output_process(umugu_ctx *ctx, umugu_node *node, umugu_fn_flags flags)
 {
-    umugu_ctx *ctx = umugu_get_context();
-    um_node_check_iteration(node);
-    const umugu_node *input = um_node_get_input(node);
+    UM_UNUSED(flags);
+    const umugu_node *input = um_node_get_input(ctx, node);
 
-    umugu_generic_signal sigout = ctx->io.out_audio;
-    node->out_pipe.samples = sigout.sample_data;
+    umugu_signal sigout = ctx->io.out_audio;
+    node->out_pipe.samples = sigout.samples.samples;
     /* TODO: SampleRate conversion if the output is different. */
-    switch (sigout.type) {
+    switch (sigout.format) {
     case UMUGU_TYPE_FLOAT: {
-        float *out = sigout.sample_data;
-        if (sigout.flags & UMUGU_SIGNAL_INTERLEAVED) {
-            for (int i = 0; i < sigout.count; ++i) {
-                for (int ch = 0; ch < sigout.channels; ++ch) {
+        float *out = sigout.samples.samples;
+        if (sigout.interleaved_channels) {
+            for (int i = 0; i < sigout.samples.frame_count; ++i) {
+                for (int ch = 0; ch < sigout.samples.channel_count; ++ch) {
                     *out++ = um_signal_get_channel(&input->out_pipe, ch)[i];
                 }
             }
         } else {
-            for (int ch = 0; ch < sigout.channels; ++ch) {
-                for (int i = 0; i < sigout.count; ++i) {
+            for (int ch = 0; ch < sigout.samples.channel_count; ++ch) {
+                for (int i = 0; i < sigout.samples.frame_count; ++i) {
                     *out++ = um_signal_get_channel(&input->out_pipe, ch)[i];
                 }
             }
@@ -40,93 +42,82 @@ um_output_process(umugu_node *node)
         break;
     }
     case UMUGU_TYPE_INT32: {
-        int32_t *out = sigout.sample_data;
-        if (sigout.flags & UMUGU_SIGNAL_INTERLEAVED) {
-            for (int i = 0; i < sigout.count; ++i) {
-                for (int ch = 0; ch < sigout.channels; ++ch) {
-                    *out++ = um_signal_get_channel(&input->out_pipe, ch)[i] *
-                             2147483648.0f;
+        int32_t *out = (void *)sigout.samples.samples;
+        if (sigout.interleaved_channels) {
+            for (int i = 0; i < sigout.samples.frame_count; ++i) {
+                for (int ch = 0; ch < sigout.samples.channel_count; ++ch) {
+                    *out++ = um_signal_get_channel(&input->out_pipe, ch)[i] * 2147483648.0f;
                 }
             }
         } else {
-            for (int ch = 0; ch < sigout.channels; ++ch) {
-                for (int i = 0; i < sigout.count; ++i) {
-                    *out++ = um_signal_get_channel(&input->out_pipe, ch)[i] *
-                             2147483648.0f;
+            for (int ch = 0; ch < sigout.samples.channel_count; ++ch) {
+                for (int i = 0; i < sigout.samples.frame_count; ++i) {
+                    *out++ = um_signal_get_channel(&input->out_pipe, ch)[i] * 2147483648.0f;
                 }
             }
         }
         break;
     }
     case UMUGU_TYPE_INT16: {
-        int16_t *out = sigout.sample_data;
-        if (sigout.flags & UMUGU_SIGNAL_INTERLEAVED) {
-            for (int i = 0; i < sigout.count; ++i) {
-                for (int ch = 0; ch < sigout.channels; ++ch) {
-                    *out++ = um_signal_get_channel(&input->out_pipe, ch)[i] *
-                             32768.0f;
+        int16_t *out = (void *)sigout.samples.samples;
+        if (sigout.interleaved_channels) {
+            for (int i = 0; i < sigout.samples.frame_count; ++i) {
+                for (int ch = 0; ch < sigout.samples.channel_count; ++ch) {
+                    *out++ = um_signal_get_channel(&input->out_pipe, ch)[i] * 32768.0f;
                 }
             }
         } else {
-            for (int ch = 0; ch < sigout.channels; ++ch) {
-                for (int i = 0; i < sigout.count; ++i) {
-                    *out++ = um_signal_get_channel(&input->out_pipe, ch)[i] *
-                             32768.0f;
+            for (int ch = 0; ch < sigout.samples.channel_count; ++ch) {
+                for (int i = 0; i < sigout.samples.frame_count; ++i) {
+                    *out++ = um_signal_get_channel(&input->out_pipe, ch)[i] * 32768.0f;
                 }
             }
         }
         break;
     }
     case UMUGU_TYPE_INT8: {
-        int8_t *out = sigout.sample_data;
-        if (sigout.flags & UMUGU_SIGNAL_INTERLEAVED) {
-            for (int i = 0; i < sigout.count; ++i) {
-                for (int ch = 0; ch < sigout.channels; ++ch) {
-                    *out++ =
-                        um_signal_get_channel(&input->out_pipe, ch)[i] * 128.0f;
+        int8_t *out = (void *)sigout.samples.samples;
+        if (sigout.interleaved_channels) {
+            for (int i = 0; i < sigout.samples.frame_count; ++i) {
+                for (int ch = 0; ch < sigout.samples.channel_count; ++ch) {
+                    *out++ = um_signal_get_channel(&input->out_pipe, ch)[i] * 128.0f;
                 }
             }
         } else {
-            for (int ch = 0; ch < sigout.channels; ++ch) {
-                for (int i = 0; i < sigout.count; ++i) {
-                    *out++ =
-                        um_signal_get_channel(&input->out_pipe, ch)[i] * 128.0f;
+            for (int ch = 0; ch < sigout.samples.channel_count; ++ch) {
+                for (int i = 0; i < sigout.samples.frame_count; ++i) {
+                    *out++ = um_signal_get_channel(&input->out_pipe, ch)[i] * 128.0f;
                 }
             }
         }
         break;
     }
     case UMUGU_TYPE_UINT8: {
-        uint8_t *out = sigout.sample_data;
-        if (sigout.flags & UMUGU_SIGNAL_INTERLEAVED) {
-            for (int i = 0; i < sigout.count; ++i) {
-                for (int ch = 0; ch < sigout.channels; ++ch) {
-                    *out++ = (um_signal_get_channel(&input->out_pipe, ch)[i] +
-                              1.0f) *
-                             128.0f;
+        uint8_t *out = (void *)sigout.samples.samples;
+        if (sigout.interleaved_channels) {
+            for (int i = 0; i < sigout.samples.frame_count; ++i) {
+                for (int ch = 0; ch < sigout.samples.channel_count; ++ch) {
+                    *out++ = (um_signal_get_channel(&input->out_pipe, ch)[i] + 1.0f) * 128.0f;
                 }
             }
         } else {
-            for (int ch = 0; ch < sigout.channels; ++ch) {
-                for (int i = 0; i < sigout.count; ++i) {
-                    *out++ = (um_signal_get_channel(&input->out_pipe, ch)[i] +
-                              1.0f) *
-                             128.0f;
+            for (int ch = 0; ch < sigout.samples.channel_count; ++ch) {
+                for (int i = 0; i < sigout.samples.frame_count; ++i) {
+                    *out++ = (um_signal_get_channel(&input->out_pipe, ch)[i] + 1.0f) * 128.0f;
                 }
             }
         }
         break;
     }
     default:
-        umugu_get_context()->io.log("[ERR] Output: invalid sample data type.");
+        ctx->io.log("[ERR] Output: invalid sample data type.");
         break;
     }
 
-    node->iteration = ctx->pipeline_iteration;
     return UMUGU_SUCCESS;
 }
 
-umugu_node_fn
+umugu_node_func
 um_output_getfn(umugu_fn fn)
 {
     switch (fn) {

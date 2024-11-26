@@ -115,17 +115,49 @@ void UmuguMaker::ToolWindows() {
   }
 }
 
+static void ErrorFatal(int err, const char *msg, const char *file, int line) {
+  printf("Umugu fatal error in %s (%d): Code %d - %s.\n", file, line, err, msg);
+  __builtin_trap();
+}
+
+static size_t CopyFileToBuffer(const char *filename, void *buffer, size_t buf_size) {
+  FILE *fp = fopen(filename, "r");
+  fseek(fp, 0, SEEK_END);
+  size_t size = ftell(fp);
+  if ((size + 1) > buf_size) {
+    fclose(fp);
+    return size + 1;
+  }
+
+  fseek(fp, 0, SEEK_SET);
+  fread(buffer, 1, size, fp);
+  ((char *)buffer)[size] = '\0';
+  fclose(fp);
+  return size + 1;
+}
+
 UmuguMaker::UmuguMaker() {
   constexpr size_t Size = 1024 * 1024 * 1024;
-  umugu_set_arena(malloc(Size), Size);
-  umugu_get_context()->io.log = printf;
-  umugu_get_context()->config.sample_rate = 48000;
+  umugu_config Config = {.log_fn = printf,
+                         .fatal_err_fn = ErrorFatal,
+                         .load_file = CopyFileToBuffer,
+                         .config_file = "../assets/config.ucg",
+                         .arena = malloc(Size),
+                         .arena_size = Size,
+                         .fallback_ppln = {},
+                         .fallback_ppln_node_count = 0};
+  auto *pCtx = umugu_load(&Config);
 
-  umugu_generic_signal *sig = &umugu_get_context()->io.out_audio;
-  sig->channels = 2;
-  sig->flags = UMUGU_SIGNAL_ENABLED | UMUGU_SIGNAL_INTERLEAVED;
-  sig->rate = umugu_get_context()->config.sample_rate;
-  sig->type = UMUGU_TYPE_FLOAT;
+  pCtx->io.backend.channel_count = 2;
+  pCtx->io.backend.sample_rate = 48000;
+  pCtx->io.backend.format = UMUGU_TYPE_FLOAT;
+  pCtx->io.backend.interleaved_channels = true;
+  pCtx->io.backend.audio_input = false;
+  pCtx->io.backend.audio_output = true;
+  pCtx->io.backend.audio_callback = umugu_process;
+  if (pCtx->state != UMUGU_STATE_IDLE) {
+    pCtx->io.log("Something went wrong initializing umugu.\n");
+  }
 
   umugu_audio_backend_init();
   // umugu_audio_backend_start_stream();

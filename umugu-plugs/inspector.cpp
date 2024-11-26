@@ -1,9 +1,10 @@
+#include "../umugu/src/umugu_internal.h"
+
 #include <umugu/umugu.h>
 
-#include <assert.h>
 #include <string.h>
 
-constexpr int32_t ValuesBufferSize = 2048;
+constexpr int ValuesBufferSize = 2048;
 
 struct Inspector {
     umugu_node Node;
@@ -17,72 +18,68 @@ struct Inspector {
     float Values[ValuesBufferSize * 2 * sizeof(float)];
 };
 
-static const umugu_var_info metadata[] = {
+static const umugu_attrib_info metadata[] = {
     {.name = {.str = "Values"},
      .offset_bytes = offsetof(Inspector, OutValues),
      .type = UMUGU_TYPE_FLOAT,
      .count = 2048,
-     .flags = UMUGU_VAR_RDONLY | UMUGU_VAR_PLOTLINE,
+     .flags = UMUGU_ATTR_RDONLY | UMUGU_ATTR_PLOTLINE,
      .misc = {.rangei = {.min = 0, .max = 2048}}},
     {.name = {.str = "Stride"},
      .offset_bytes = offsetof(Inspector, Stride),
      .type = UMUGU_TYPE_INT32,
      .count = 1,
-     .flags = UMUGU_VAR_NONE,
+     .flags = UMUGU_ATTR_FLAG_NONE,
      .misc = {.rangei = {.min = 1, .max = 1024}}},
     {.name = {.str = "Offset"},
      .offset_bytes = offsetof(Inspector, Offset),
      .type = UMUGU_TYPE_INT32,
      .count = 1,
-     .flags = UMUGU_VAR_NONE,
+     .flags = UMUGU_ATTR_FLAG_NONE,
      .misc = {.rangei = {.min = 1, .max = 1024}}},
     {.name = {.str = "Pause"},
      .offset_bytes = offsetof(Inspector, Pause),
      .type = UMUGU_TYPE_BOOL,
      .count = 1,
-     .flags = UMUGU_VAR_NONE,
+     .flags = UMUGU_ATTR_FLAG_NONE,
      .misc = {.rangei = {.min = 0, .max = 1}}},
 };
 
-extern "C" const int32_t size = (int32_t)sizeof(Inspector);
-extern "C" umugu_node_fn getfn(int32_t fn);
-extern "C" const umugu_var_info *vars;
-extern "C" const int32_t var_count = sizeof(metadata) / sizeof(*metadata);
+extern "C" const int size = (int)sizeof(Inspector);
+extern "C" umugu_node_func getfn(int fn);
+extern "C" const umugu_attrib_info *attribs;
+extern "C" const int attrib_count = sizeof(metadata) / sizeof(*metadata);
 
-const umugu_var_info *vars = &metadata[0];
+const umugu_attrib_info *attribs = &metadata[0];
 
-static int Init(umugu_node *apNode) {
+static int Init(umugu_ctx *apCtx, umugu_node *apNode, umugu_fn_flags aFlags) {
+    UM_UNUSED(apCtx);
     Inspector *pSelf = (Inspector *)apNode;
-    pSelf->It = 0;
-    pSelf->Offset = 0;
-    pSelf->Stride = 2;
+    if (aFlags & UMUGU_FN_INIT_DEFAULTS) {
+        pSelf->It = 0;
+        pSelf->Offset = 0;
+        pSelf->Stride = 2;
+        pSelf->Pause = false;
+    }
     pSelf->Size = ValuesBufferSize;
-    pSelf->Pause = false;
     pSelf->OutValues = pSelf->Values;
     apNode->out_pipe.samples = NULL;
     memset(pSelf->Values, 0, sizeof(pSelf->Values));
     return UMUGU_SUCCESS;
 }
 
-static int Process(umugu_node *apNode) {
-    if (apNode->out_pipe.samples) {
-        return UMUGU_NOOP;
-    }
-
-    auto pCtx = umugu_get_context();
+static int Process(umugu_ctx *apCtx, umugu_node *apNode,
+                   umugu_fn_flags aFlags) {
+    UM_UNUSED(aFlags);
     Inspector *pSelf = (Inspector *)apNode;
-    auto pInputNode = pCtx->pipeline.nodes[apNode->prev_node];
-    if (!pInputNode->out_pipe.samples) {
-        umugu_node_dispatch(apNode, UMUGU_FN_PROCESS);
-        assert(pInputNode->out_pipe.samples);
-    }
+    auto pInputNode = apCtx->pipeline.nodes[apNode->prev_node];
 
     if (pSelf->Pause) {
         return UMUGU_SUCCESS;
     }
 
     float *pInputFloat = (float *)pInputNode->out_pipe.samples;
-    const int Count = pInputNode->out_pipe.count;
+    const int Count = pInputNode->out_pipe.frame_count;
     for (int i = pSelf->Offset; i < Count * 2; i += pSelf->Stride) {
         pSelf->Values[pSelf->It] = pInputFloat[i];
         pSelf->Values[pSelf->It + pSelf->Size] = pInputFloat[i];
@@ -96,7 +93,7 @@ static int Process(umugu_node *apNode) {
     return UMUGU_SUCCESS;
 }
 
-umugu_node_fn getfn(int32_t fn) {
+umugu_node_func getfn(int32_t fn) {
     switch (fn) {
         case UMUGU_FN_INIT:
             return Init;

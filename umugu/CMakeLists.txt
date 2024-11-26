@@ -33,15 +33,12 @@ target_sources(umugu PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include/umugu/umugu.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu_internal.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/debugu.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/controller.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu_serialization.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/oscilloscope.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/wav_player.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/mixer.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/limiter.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/amplitude.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/piano.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/output.c
 )
 
@@ -66,32 +63,17 @@ link_libraries(
 	pthread
 	rt
     umugu
-    portmidi
-    fluidsynth
 )
 
-add_executable(player-portaudio)
+add_executable(plumugu)
 
-target_sources(player-portaudio PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/test/umugutest_portaudio.c
+target_sources(plumugu PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/main.c
 )
 
-target_link_libraries(player-portaudio PRIVATE
+target_link_libraries(plumugu PRIVATE
     jack
     asound
     portaudio
+    fluidsynth
 )
-
-add_executable(player-stdout)
-
-target_sources(player-stdout PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/test/umugutest_stdout.c
-)
-
-if (UM_BUILD_TESTS)
-    add_executable(tests)
-
-    target_sources(tests PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/test/test.c
-    )
-endif()

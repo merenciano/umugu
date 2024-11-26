@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.13)
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 
-set(UM_BUILD_MAKER TRUE)
+set(UM_BUILD_MAKER FALSE)
 set(UM_BUILD_PLUGS TRUE)
 
 project (Umugu VERSION 0.9.0)
@@ -16,5 +16,4 @@ if (UM_BUILD_PLUGS)
     add_subdirectory(umugu-plugs)
 endif()
 
-set_target_properties(player-portaudio PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin)
-set_target_properties(player-stdout PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin)
+set_target_properties(plumugu PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin)

@@ -13,15 +13,15 @@ namespace umumk {
 void PipelineInspector::Show() {
   ImGui::Begin("Pipeline graph");
   ImGui::Text("Available time for the callback: %lf",
-              ((umugu_portaudio *)(umugu_get_context()->io.backend_data))->time_margin_sec);
-  for (int i = 0; i < umugu_get_context()->pipeline.node_count; ++i) {
-    NodeWidgets(umugu_get_context()->pipeline.nodes[i]);
+              ((umugu_portaudio *)(umugu_get()->io.backend.internal_data))->time_margin_sec);
+  for (int i = 0; i < umugu_get()->pipeline.node_count; ++i) {
+    NodeWidgets(umugu_get()->pipeline.nodes[i]);
   }
   ImGui::End();
 }
 
 void PipelineInspector::NodeWidgets(umugu_node *apNode) {
-  const umugu_node_info *pInfo = &umugu_get_context()->nodes_info[apNode->type];
+  const umugu_node_info *pInfo = &umugu_get()->nodes_info[apNode->info_idx];
   if (!pInfo) {
     printf("Node info not found.\n");
     return;

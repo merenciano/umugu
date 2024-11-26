@@ -1,18 +1,18 @@
 #ifndef __UMUGU_STDOUT_H__
 #define __UMUGU_STDOUT_H__
 
-/* Generic interface. */
-int umugu_audio_backend_play(int milliseconds);
-
 #endif /* __UMUGU_STDOUT_H__ */
 
 #define UMUGU_STDOUT_IMPL
 #ifdef UMUGU_STDOUT_IMPL
 
+#include "../src/umugu_internal.h"
 #include "umugu/umugu.h"
 
-#include <assert.h>
 #include <stdio.h>
+
+/* Generic interface. */
+int umugu_audio_backend_play(umugu_ctx *ctx, int milliseconds);
 
 typedef struct {
     char riff[4]; /* "RIFF" */
@@ -44,66 +44,69 @@ um__type_size(int type)
     case UMUGU_TYPE_FLOAT:
         return 4;
     default:
-        assert(0);
+        UMUGU_ASSERT(0);
         return 0;
     }
 }
 
 void
-um__write_wav_header(size_t wav_data_size)
+um__write_wav_header(umugu_ctx *ctx, size_t wav_data_size)
 {
-    umugu_ctx *ctx = umugu_get_context();
-    umugu_generic_signal *sig = &ctx->io.out_audio;
+    umugu_signal *sig = &ctx->pipeline.sig;
     wav_header hdr = {
         .riff = "RIFF",
         .bytes_remaining = wav_data_size + 36,
         .wave = "WAVE",
         .fmt = "fmt ",
         .num16 = 16,
-        .sample_fmt = sig->type == UMUGU_TYPE_FLOAT ? 3 : 1,
-        .channels = sig->channels,
-        .sample_rate = sig->rate,
-        .bytes_per_sec = sig->rate * sig->channels * um__type_size(sig->type),
-        .bytes_per_frame = sig->channels * um__type_size(sig->type),
-        .bits_per_sample = um__type_size(sig->type) * 8, // 8: byte -> bits
+        .sample_fmt = sig->format == UMUGU_TYPE_FLOAT ? 3 : 1,
+        .channels = sig->samples.channel_count,
+        .sample_rate = sig->sample_rate,
+        .bytes_per_sec = sig->sample_rate * sig->samples.channel_count * um__type_size(sig->format),
+        .bytes_per_frame = sig->samples.channel_count * um__type_size(sig->format),
+        .bits_per_sample = um__type_size(sig->format) * 8, // 8: byte -> bits
         .data = "data",
         .data_size = wav_data_size};
 
     /* 44 is the specified size of the .wav header */
-    assert(sizeof(hdr) == 44);
+    UMUGU_ASSERT(sizeof(hdr) == 44);
     fwrite(&hdr, sizeof(hdr), 1, stdout);
 }
 
 int
-umugu_audio_backend_play(int milliseconds)
+umugu_audio_backend_play(umugu_ctx *ctx, int milliseconds)
 {
     enum { SAMPLE_COUNT = 2048 };
     char samples[SAMPLE_COUNT * 4];
 
-    umugu_ctx *ctx = umugu_get_context();
-    umugu_generic_signal *sig = &ctx->io.out_audio;
+    if (!ctx->io.backend.audio_output) {
+        return UMUGU_NOOP;
+    }
+    umugu_signal *sig = &ctx->pipeline.sig;
+    sig->samples.channel_count = ctx->io.backend.channel_count;
+    sig->sample_rate = ctx->io.backend.sample_rate;
+    sig->format = ctx->io.backend.format;
+    sig->interleaved_channels = ctx->io.backend.interleaved_channels;
 
-    int frames_left = (int)(sig->rate / 1000) * milliseconds;
-    assert(frames_left >= 0);
-    um__write_wav_header(frames_left);
+    ctx->io.backend.backend_name = "stdout_pipe_wav";
+    ctx->io.backend.backend_running = true;
+
+    int frames_left = (int)(sig->sample_rate / 1000) * milliseconds;
+    UMUGU_ASSERT(frames_left >= 0);
+    um__write_wav_header(ctx, frames_left);
 
     while (frames_left) {
-        int frame_count =
-            frames_left > SAMPLE_COUNT ? SAMPLE_COUNT : frames_left;
+        int frame_count = frames_left > SAMPLE_COUNT ? SAMPLE_COUNT : frames_left;
         frames_left -= frame_count;
-        sig->sample_data = (void *)samples;
-        sig->count = frame_count;
+        sig->samples.samples = (void *)samples;
+        sig->samples.frame_count = frame_count;
 
-        umugu_produce_signal();
-#if 0
-        for (int i = 0; i < ctx->pipeline.node_count; ++i) {
-            umugu_node_dispatch(ctx->pipeline.nodes[0], UMUGU_FN_PROCESS);
-        }
-
-#endif
-        fwrite(samples, frame_count * um__type_size(sig->type) * sig->channels,
-               1, stdout);
+        ctx->io.backend.audio_callback(ctx, frame_count, NULL, sig);
+        fwrite(samples, frame_count * um__type_size(sig->format) * sig->samples.channel_count, 1,
+               stdout);
     }
+
+    ctx->io.backend.backend_running = false;
 
     return UMUGU_SUCCESS;
 }

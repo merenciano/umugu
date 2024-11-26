@@ -7,18 +7,18 @@
 
 namespace umumk {
 void DrawNodeWidgets(umugu_node *aNode) {
-  const umugu_node_info &Info = umugu_get_context()->nodes_info[aNode->type];
+  const umugu_node_info &Info = umugu_get()->nodes_info[aNode->info_idx];
 
   ImGui::TextUnformatted(Info.name.str);
-  const int VarCount = Info.var_count;
+  const int VarCount = Info.attrib_count;
   for (int i = 0; i < VarCount; ++i) {
-    const umugu_var_info &Var = Info.vars[i];
+    const umugu_attrib_info &Var = Info.attribs[i];
     char *Value = ((char *)aNode + Var.offset_bytes);
     int Step = 1;
     int FastStep = 50;
     switch (Var.type) {
     case UMUGU_TYPE_FLOAT: {
-      if (Var.flags & UMUGU_VAR_PLOTLINE) {
+      if (Var.flags & UMUGU_ATTR_PLOTLINE) {
         if (!*(float **)Value)
           break;
         if (ImPlot::BeginPlot("PlotLine")) {
