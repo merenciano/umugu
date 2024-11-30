@@ -1,6 +1,5 @@
-#include "../umugu/src/umugu_internal.h"
-
 #include <umugu/umugu.h>
+#include <umugu/umugu_internal.h>
 
 #include <fluidsynth.h>
 #include <string.h>
@@ -27,16 +26,21 @@ static inline int um_init(umugu_ctx *ctx, umugu_node *node,
         strncpy(self->soundfont_file, ctx->fallback_soundfont2_file,
                 UMUGU_PATH_LEN);
     }
+
+    if (self->midi_dev_name[0] == 0 || (flags & UMUGU_FN_INIT_DEFAULTS)) {
+        strncpy(self->midi_dev_name, ctx->fallback_midi_device, UMUGU_PATH_LEN);
+    }
+
     node->out_pipe.channel_count = 2;
+
+    if (flags & UMUGU_FN_INIT_DEFAULTS) {
+        return UMUGU_SUCCESS;
+    }
 
     self->settings = new_fluid_settings();
     if (!self->settings) {
         ctx->io.log("FluidSynth error: settings creation.\n");
         return UMUGU_ERR;
-    }
-
-    if (self->midi_dev_name[0] == 0 || (flags & UMUGU_FN_INIT_DEFAULTS)) {
-        strncpy(self->midi_dev_name, ctx->fallback_midi_device, UMUGU_PATH_LEN);
     }
 
     fluid_settings_setnum(self->settings, "synth.sample-rate",
@@ -48,14 +52,14 @@ static inline int um_init(umugu_ctx *ctx, umugu_node *node,
     self->synth = new_fluid_synth(self->settings);
     if (!self->synth) {
         ctx->io.log("FluidSynth error: synth creation.\n");
-        umugu_node_dispatch(ctx, node, UMUGU_FN_RELEASE, UMUGU_NOFLAG);
+        um_node_dispatch(ctx, node, UMUGU_FN_RELEASE, UMUGU_NOFLAG);
         return UMUGU_ERR;
     }
 
     if (fluid_synth_sfload(self->synth, self->soundfont_file, 1) == -1) {
         ctx->io.log("FluidSynth error: soundfont2 file loading (%s).\n",
                     self->soundfont_file);
-        umugu_node_dispatch(ctx, node, UMUGU_FN_RELEASE, UMUGU_NOFLAG);
+        um_node_dispatch(ctx, node, UMUGU_FN_RELEASE, UMUGU_NOFLAG);
         return UMUGU_ERR_AUDIO_BACKEND;
     }
 
@@ -65,7 +69,7 @@ static inline int um_init(umugu_ctx *ctx, umugu_node *node,
     if (!self->midi) {
         ctx->io.log("FluidSynth error: midi driver (%s) creation.\n",
                     self->midi_dev_name);
-        umugu_node_dispatch(ctx, node, UMUGU_FN_RELEASE, UMUGU_NOFLAG);
+        um_node_dispatch(ctx, node, UMUGU_FN_RELEASE, UMUGU_NOFLAG);
         return UMUGU_ERR_MIDI;
     }
 

@@ -2,18 +2,18 @@
                                u   mu         gu
     "Venga, a ver si te buscas una musiquilla guapa, ¿no colega?" - El Pirri.
 
+
+    DOC:
+        - Signals:
+            - ctx->io.out_audio:
+
     TODO:
-        - Sanitizers build config.
-        - Fuzzy tests.
-        - Doxygen.
-        - Sample rate conversions.
-        - Stream abstraction
-            * File i/o
-            * Ring buffer
-        - File write callback
-        - Finish removing the static context
+      Library code:
+        - Resampler: sample rate conversions.
+        - Stream abstraction:
+            - File i/o
+            - Ring buffer
         - Finish swapping the remaining stdio.h calls with the umugu_io ones
-        - Gather tracing and metrics data if UMUGU_TRACE is defined
         - Evolve the fatal_err callback into critical_err, which is like the actual fatal,
            but has extra data to allow a last attempt to handle the error without closing the app.
            Some examples would be to provide fallbacks of some essential resource, confirm that
@@ -21,21 +21,27 @@
            to configure another audio backend.
         - Extend the log func for loglevel, file, func and line.
         - Persistent alloc with the exact size for node infos and pipeline nodes.
-        - Preprocessor directives for optional improvements, like better timer, generics or
-           constexpr.
-        - TinyCC compilation script. Spend some time hacking with replacing dlopen, changing the
-           config format to C, allowing node scripting in C and bootstraping.
-        - Python bindings.
-        - Core utils (timer, names, hash table, math...) benchmarks and unit testing.
-        - More audio formats, backends, controllers...
-        - Web and Android ports
-        - Verbose logs, core dump, stack trace print...
-        - Embed minimal fallbacks of the required assets in the library.
-        - CI setup for the project.
-        - Move umugu_internal to include/umugu folder.
-        - Move the builtin nodes to umugu.c
         - Revisit the optional deps like PortAudio. The current header-only with optional impl
            does not work well with development tools.
+        - Move the builtin nodes to umugu.c
+
+      Project:
+        - Sanitizers build config.
+        - Fuzzy tests.
+        - Lib documentation.
+        - Gather tracing and metrics data if UMUGU_TRACE is defined
+        - Verbose logs, core dump, stack trace print...
+        - Benchmark and unit test of: timer, names, hash table, math...
+
+    Maybe:
+        - Embed minimal fallbacks of the required assets in the library.
+        - Preprocessor directives for optional improvements, like better timer, generics or
+           constexpr.
+        - Language bindings (python first).
+        - CI setup for the project.
+        - More audio formats, backends, controllers...
+        - Web and Android ports
+
 */
 
 #ifndef __UMUGU_H__
@@ -86,7 +92,6 @@ typedef struct umugu_attrib_info umugu_attrib_info;
 typedef struct umugu_node_type_info umugu_node_type_info;
 typedef struct umugu_node umugu_node;
 typedef struct umugu_pipeline umugu_pipeline;
-typedef struct umugu_audio_backend umugu_audio_backend;
 
 typedef int umugu_state;             /* enum umugu_state_ */
 typedef int umugu_waveform;          /* enum umugu_waveform_ */
@@ -99,7 +104,7 @@ typedef int (*umugu_node_func)(umugu_ctx *ctx, umugu_node *node, umugu_fn_flags 
 /* PUBLIC API */
 UMUGU_API umugu_ctx *umugu_load(const umugu_config *cfg);
 UMUGU_API void umugu_unload(umugu_ctx *ctx);
-UMUGU_API int umugu_process(umugu_ctx *ctx, size_t frames, umugu_signal *in, umugu_signal *out);
+UMUGU_API int umugu_process(umugu_ctx *ctx, size_t frames);
 
 UMUGU_API int umugu_pipeline_export(umugu_ctx *ctx, const char *filename);
 UMUGU_API int umugu_pipeline_import(umugu_ctx *ctx, const char *filename);
@@ -259,6 +264,7 @@ struct umugu_config {
     void (*fatal_err_fn)(int err, const char *msg, const char *file, int line);
     /* This func should return the size of the file just in case the buffer was not big enough */
     size_t (*load_file_fn)(const char *filename, void *buffer, size_t buf_size);
+
     const char *config_file;
     void *arena;
     size_t arena_size;
@@ -269,24 +275,6 @@ struct umugu_config {
      */
     umugu_name fallback_ppln[UMUGU_FALLBACK_PIPELINE_CAPACITY];
     size_t fallback_ppln_node_count;
-};
-
-/* Generic backend abstraction layer. */
-struct umugu_audio_backend {
-    int (*audio_callback)(umugu_ctx *, size_t frames, umugu_signal *in, umugu_signal *out);
-
-    int channel_count;
-    int sample_rate;
-    umugu_type format;
-    bool interleaved_channels;
-    bool audio_input;
-    bool audio_output;
-
-    // Backend writes those
-    const char *backend_name;
-    bool backend_running;
-    int64_t last_iteration;
-    void *internal_data;
 };
 
 /* Input and output abstraction.
@@ -304,7 +292,13 @@ struct umugu_io {
      * WRITE: Umugu. */
     umugu_signal out_audio;
 
-    umugu_audio_backend backend; // Generic audio backend interface
+    const char *backend_name;
+    void *backend_data;
+
+    int (*backend_init)(umugu_ctx *ctx);
+    int (*backend_read)(umugu_ctx *ctx, int frames);
+    int (*backend_write)(umugu_ctx *ctx, int frames);
+    void (*backend_shutdown)(umugu_ctx *ctx);
 };
 
 /**
@@ -324,15 +318,15 @@ struct umugu_ctx {
     umugu_io io;             /* Input / output abstraction layer. */
     umugu_pipeline pipeline; /* Audio processing pipeline. */
 
-    /* Memory arena. */
-    uint8_t *arena_head;      /* Points to the first byte of the memory arena. */
-    ptrdiff_t arena_capacity; /* In bytes. */
-    uint8_t *arena_pers_end;  /* Points to the first byte after the permanent allocated region. */
-    uint8_t *arena_tail;      /* Points to the first unallocated byte of the arena. */
-
     /* Nodes type info. */
     umugu_node_type_info nodes_info[UMUGU_DEFAULT_NODE_INFO_CAPACITY];
     int32_t nodes_info_next;
+
+    /* Memory arena. */
+    uint8_t *arena_head;      /* First byte of the memory arena. */
+    ptrdiff_t arena_capacity; /* In bytes. */
+    uint8_t *arena_pers_end;  /* First byte after the permanent allocated region. */
+    uint8_t *arena_tail;      /* First unallocated byte of the arena. */
 
     /* Debug metric data. */
     int64_t ppln_iterations;   // Counter that increases for each umugu_produce_signal call.

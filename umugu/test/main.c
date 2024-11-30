@@ -1,7 +1,7 @@
 #include "../src/debugu.h"
-#include "../src/umugu_internal.h"
 
 #include <umugu/umugu.h>
+#include <umugu/umugu_internal.h>
 
 #define UMUGU_PORTAUDIO19_IMPL
 #include <umugu/backends/umugu_portaudio19.h>
@@ -38,6 +38,7 @@ fatal_error(int err, const char *msg, const char *file, int line)
 static size_t
 file_load(const char *filename, void *buffer, size_t buf_size)
 {
+    UM_TRACE_ZONE();
     FILE *fp = fopen(filename, "r");
     fseek(fp, 0, SEEK_END);
     size_t size = ftell(fp);
@@ -82,6 +83,7 @@ app_print_vector(const char *title, um_complex *x, int n)
 static inline void
 app_run_unit_test(void)
 {
+    UM_TRACE_ZONE();
     static const int N = 1 << 3; /* N-point FFT, iFFT */
     um_complex v[N], v1[N], scratch[N];
     int k;
@@ -112,6 +114,7 @@ app_run_unit_test(void)
 static inline void
 app_stdout_demo(umugu_ctx *ctx)
 {
+    UM_TRACE_ZONE();
     umugu_audio_backend_play(ctx, 60000);
     getchar();
 }
@@ -119,6 +122,7 @@ app_stdout_demo(umugu_ctx *ctx)
 static inline void
 app_playback_demo(umugu_ctx *ctx)
 {
+    UM_TRACE_ZONE();
     umugu_audio_backend_init(ctx);
     umugu_audio_backend_start_stream(ctx);
 
@@ -132,6 +136,7 @@ app_playback_demo(umugu_ctx *ctx)
 static inline void
 app_midi_synth_demo(umugu_ctx *ctx)
 {
+    UM_TRACE_ZONE();
     umugu_audio_backend_init(ctx);
     umugu_audio_backend_start_stream(ctx);
 
@@ -169,6 +174,7 @@ static char g_arena[APP_ARENA_SIZE];
 int
 main(int argc, char **argv)
 {
+    UM_TRACE_ZONE();
     enum {
         APP_NONE = 0,
         APP_STDOUT, /* no backend */
@@ -234,13 +240,6 @@ main(int argc, char **argv)
 
     /* umugu loading */
     umugu_ctx *umgctx = umugu_load(&umgcfg);
-    umgctx->io.backend.channel_count = umgctx->pipeline.sig.samples.channel_count;
-    umgctx->io.backend.sample_rate = 48000;
-    umgctx->io.backend.format = umgctx->pipeline.sig.format;
-    umgctx->io.backend.interleaved_channels = true;
-    umgctx->io.backend.audio_input = false;
-    umgctx->io.backend.audio_output = true;
-    umgctx->io.backend.audio_callback = umugu_process;
 
     if (run_tests) {
         app_run_unit_test();

@@ -20,26 +20,17 @@ target_compile_definitions(umugu PUBLIC
 )
 
 target_include_directories(umugu PRIVATE 
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/include/umugu
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/include
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_include_directories(umugu PRIVATE 
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
-
 target_sources(umugu PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include/umugu/umugu.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu_internal.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/umugu/umugu_internal.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu_serialization.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/oscilloscope.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/wav_player.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/mixer.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/limiter.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/amplitude.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/output.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu_nodes.c
 )
 
 add_compile_options(

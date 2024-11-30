@@ -28,7 +28,7 @@ void PipelineBuilder::Show() {
   ImGui::Begin("Pipeline builder");
   static umugu_name NodeName;
   if (ImGui::Button("Load info")) {
-    umugu_node_info_load(&NodeName);
+    um_node_info_load(&NodeName);
     memset(NodeName.str, 0, 32);
   }
   ImGui::SameLine();

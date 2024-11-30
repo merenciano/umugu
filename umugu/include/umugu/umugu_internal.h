@@ -11,12 +11,15 @@
 
 #define UM_UNUSED(VAR) (void)(VAR)
 
+#define UM_STRCAT__(x, y) x##y
+#define UM_STRCAT_(x, y) UM_STRCAT__(x, y)
+
 #ifndef UMUGU_ASSERT
 #include <assert.h>
 #define UMUGU_ASSERT assert
 #endif
 
-// UMUGU_TRAP
+/* UMUGU_TRAP */
 #ifndef UMUGU_TRAP
 #undef UM_HAS_BUILTIN_TRAP
 #ifdef __has_builtin
@@ -39,7 +42,31 @@
 #define UMUGU_TRAP() raise(SIGTRAP);
 #endif
 #endif
-// END UMUGU_TRAP
+/* END UMUGU_TRAP */
+
+/* UMUGU_TRACE */
+#if defined(UMUGU_TRACE) && defined(TRACY_ENABLE) && (defined(__clang__) || defined(__GNUC__))
+#include "tracy/TracyC.h"
+static inline void
+um___tracy_zone_end(TracyCZoneCtx *ctx)
+{
+    TracyCZoneEnd(*ctx);
+}
+#define UM_TRACE_ZONE()                                                                            \
+    TracyCZone(UM_STRCAT_(CTX, __LINE__) __attribute((cleanup(um___tracy_zone_end))), true);       \
+    ((void)UM_STRCAT_(CTX, __LINE__))
+#define UM_TRACE_ZONE_COLOR(...) TracyCZoneColor(UM_STRCAT_(CTX, __LINE__), (__VA_ARGS__))
+#define UM_TRACE_FRAME_MARK TracyCFrameMark
+#define UM_TRACE_MSG(...) TracyCMessageL(__VA_ARGS__)
+#define UM_TRACE_PLOTI(...) TracyCPlotI(__VA_ARGS__)
+#define UM_TRACE_PLOTF(...) TracyCPlotF(__VA_ARGS__)
+#define UM_TRACE_PLOT_CONFIG(...) TracyCPlotConfig(__VA_ARGS__)
+#else
+#define UM_TRACE_ZONE() ((void)0)
+#define UM_TRACE_ZONE_COLOR(...) ((void)0)
+#define UM_TRACE_FRAME_MARK ((void)0)
+#endif
+/* END UMUGU TRACE */
 
 #ifdef __cplusplus
 extern "C" {
@@ -65,15 +92,14 @@ UMUGU_API void um_node_unplug(umugu_node_type_info *info);
 /* Node virtual dispatching.
  * @param fn Function identifier, valid definitions are prefixed with UMUGU_FN_.
  * Return UMUGU_SUCCESS if the call is performed and UMUGU_ERR otherwise. */
-UMUGU_API int
-umugu_node_dispatch(umugu_ctx *ctx, umugu_node *node, umugu_fn fn, umugu_fn_flags flags);
+UMUGU_API int um_node_dispatch(umugu_ctx *ctx, umugu_node *node, umugu_fn fn, umugu_fn_flags flags);
 
 /* Search the node name in the built-in nodes and add the node info to
  * the context. If there is no built-in node with that name, looks for
  * lib<node_name>.so in the rpath and plug it if found.
  * Return a pointer to the loaded node info in the context or NULL if not found.
  */
-UMUGU_API const umugu_node_type_info *umugu_node_info_load(umugu_ctx *ctx, const umugu_name *name);
+UMUGU_API const umugu_node_type_info *um_node_info_load(umugu_ctx *ctx, const umugu_name *name);
 
 /**
  * @brief Persistent allocation.
@@ -83,7 +109,7 @@ UMUGU_API const umugu_node_type_info *umugu_node_info_load(umugu_ctx *ctx, const
  * @param bytes Alloc size in bytes.
  * @return Allocated memory. It never returns NULL.
  */
-UMUGU_API void *um_alloc_persistent(umugu_ctx *ctx, size_t bytes);
+UMUGU_API void *um_allocprs(umugu_ctx *ctx, size_t bytes);
 
 /**
  * @brief Temporal allocation.
@@ -93,7 +119,7 @@ UMUGU_API void *um_alloc_persistent(umugu_ctx *ctx, size_t bytes);
  * @param bytes Alloc size in bytes.
  * @return Allocated memory. It never returns NULL.
  */
-UMUGU_API void *um_talloc(umugu_ctx *ctx, size_t bytes);
+UMUGU_API void *um_alloctmp(umugu_ctx *ctx, size_t bytes);
 
 /**
  * Allocates a large enough sample buffer in the signal for the current iteration frame count.
@@ -276,6 +302,8 @@ um_signal_samplef(const umugu_signal *sig, int frame, int ch)
         return 0.0f;
     }
 }
+
+void um_signal_wav_header(umugu_signal *sig, size_t wav_data_size, void *out_buffer);
 
 /* ## WAVEFORM GENERATION ## */
 

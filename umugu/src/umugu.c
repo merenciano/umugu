@@ -4,6 +4,7 @@
 
 #include <dlfcn.h>
 #include <math.h>
+#include <stdio.h> /* pipeline import/export fwrite and fread */
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -28,8 +29,6 @@ static const umugu_type UM_DEFAULT_SAMPLE_FORMAT = UMUGU_TYPE_FLOAT;
 static const int UM_DEFAULT_SAMPLE_RATE = 48000;
 static const int UM_DEFAULT_CHANNELS = 2;
 static const bool UM_DEFAULT_INTERLEAVED_CHANNELS = true;
-static const bool UM_DEFAULT_AUDIO_IN = false;
-static const bool UM_DEFAULT_AUDIO_OUT = true;
 
 /*
  *  PRIVATE FUNCTIONS
@@ -37,14 +36,14 @@ static const bool UM_DEFAULT_AUDIO_OUT = true;
 typedef struct um_confmap um_confmap;
 static const umugu_node_type_info *um_node_info_builtin_find(const umugu_name *name);
 static int um_load_config(umugu_ctx *ctx, const char *filename);
-static void um_load_defaults(umugu_ctx *ctx);
 static int um_confmap_insert(um_confmap *cm, const umugu_name *key, const char *value, size_t len);
 static const char *um_confmap_get(const um_confmap *cm, const umugu_name *key);
 
 const umugu_node_type_info *
-umugu_node_info_load(umugu_ctx *ctx, const umugu_name *name)
+um_node_info_load(umugu_ctx *ctx, const umugu_name *name)
 {
     UMUGU_ASSERT(ctx && name);
+    UM_TRACE_ZONE();
     /* Check if the node info is already loaded. */
     for (int i = 0; i < ctx->nodes_info_next; ++i) {
         if (um_name_equals(&ctx->nodes_info[i].name, name)) {
@@ -77,23 +76,42 @@ umugu_node_info_load(umugu_ctx *ctx, const umugu_name *name)
     return NULL;
 }
 
+static inline umugu_signal
+um_signal_default(void)
+{
+    return (umugu_signal){
+        .samples = {.samples = NULL, .frame_count = 0, .channel_count = UM_DEFAULT_CHANNELS},
+        .interleaved_channels = UM_DEFAULT_INTERLEAVED_CHANNELS,
+        .format = UM_DEFAULT_SAMPLE_FORMAT,
+        .sample_rate = UM_DEFAULT_SAMPLE_RATE};
+}
+
 umugu_ctx *
 umugu_load(const umugu_config *cfg)
 {
+    UM_TRACE_ZONE();
     um_nanosec init_time = um_time_now();
     UMUGU_ASSERT(cfg);
     UMUGU_ASSERT(cfg->arena && cfg->arena_size > sizeof(umugu_ctx));
     UMUGU_ASSERT(cfg->arena);
+
+#ifdef UMUGU_DEBUG
     memset(cfg->arena, 0, cfg->arena_size);
+#endif
 
     // Persistent alloc for context
     umugu_ctx *ctx = cfg->arena;
+    ctx->state = UMUGU_STATE_LOADING;
+
     ctx->arena_head = cfg->arena;
     ctx->arena_tail = ctx->arena_head + sizeof(umugu_ctx);
     ctx->arena_capacity = cfg->arena_size;
     ctx->arena_pers_end = ctx->arena_tail;
 
-    ctx->state = UMUGU_STATE_LOADING;
+    ctx->io.in_audio = (umugu_signal){.samples = {.channel_count = 0}};
+    ctx->io.out_audio = um_signal_default();
+    ctx->ppln_iterations = 0;
+    ctx->ppln_it_allocated = 0;
 
     ctx->io.log = cfg->log_fn;
     ctx->io.fatal = cfg->fatal_err_fn;
@@ -101,7 +119,7 @@ umugu_load(const umugu_config *cfg)
 
     int err = um_load_config(ctx, cfg->config_file);
     if (err != UMUGU_SUCCESS) {
-        um_load_defaults(ctx);
+        ctx->io.log("Error loading config file %s.\n", cfg->config_file);
     }
 
     if (!ctx->pipeline.node_count) {
@@ -121,13 +139,14 @@ umugu_load(const umugu_config *cfg)
 void
 umugu_unload(umugu_ctx *ctx)
 {
+    UM_TRACE_ZONE();
     if (!ctx) {
         return;
     }
 
     ctx->state = UMUGU_STATE_UNLOADING;
     for (int i = 0; i < ctx->pipeline.node_count; ++i) {
-        umugu_node_dispatch(ctx, ctx->pipeline.nodes[i], UMUGU_FN_RELEASE, UMUGU_NOFLAG);
+        um_node_dispatch(ctx, ctx->pipeline.nodes[i], UMUGU_FN_RELEASE, UMUGU_NOFLAG);
     }
 
     for (int i = 0; i < ctx->nodes_info_next; ++i) {
@@ -140,18 +159,21 @@ umugu_unload(umugu_ctx *ctx)
 }
 
 UMUGU_API int
-umugu_process(umugu_ctx *ctx, size_t frames, umugu_signal *in, umugu_signal *out)
+umugu_process(umugu_ctx *ctx, size_t frames)
 {
+    UM_TRACE_FRAME_MARK;
+    UM_TRACE_ZONE();
     UMUGU_ASSERT(ctx);
     ctx->pipeline.sig.samples.frame_count = frames;
     ctx->state = UMUGU_STATE_PROCESSING;
+
     if (!ctx->ppln_iterations) {
         for (int i = 0; i < ctx->pipeline.node_count; ++i) {
             umugu_node *node = ctx->pipeline.nodes[i];
-            int err = umugu_node_dispatch(ctx, node, UMUGU_FN_INIT, UMUGU_NOFLAG);
+            int err = um_node_dispatch(ctx, node, UMUGU_FN_INIT, UMUGU_NOFLAG);
             if (err < UMUGU_SUCCESS) {
                 ctx->io.log(
-                    "Error (%d) processing node:\n"
+                    "Error (%d) initializing node:\n"
                     "\tIndex: %d.\n\tName: %s\n",
                     err, i, ctx->nodes_info[node->info_idx].name);
             }
@@ -161,16 +183,9 @@ umugu_process(umugu_ctx *ctx, size_t frames, umugu_signal *in, umugu_signal *out
     ctx->ppln_iterations++;
     ctx->ppln_it_allocated = 0;
 
-    if (in) {
-        ctx->io.in_audio = *in;
-    }
-    if (out) {
-        ctx->io.out_audio = *out;
-    }
-
     for (int i = 0; i < ctx->pipeline.node_count; ++i) {
         umugu_node *node = ctx->pipeline.nodes[i];
-        int err = umugu_node_dispatch(ctx, node, UMUGU_FN_PROCESS, UMUGU_NOFLAG);
+        int err = um_node_dispatch(ctx, node, UMUGU_FN_PROCESS, UMUGU_NOFLAG);
         if (err < UMUGU_SUCCESS) {
             UMUGU_TRAP();
             ctx->io.log(
@@ -185,8 +200,9 @@ umugu_process(umugu_ctx *ctx, size_t frames, umugu_signal *in, umugu_signal *out
 }
 
 void *
-um_alloc_persistent(umugu_ctx *ctx, size_t bytes)
+um_allocprs(umugu_ctx *ctx, size_t bytes)
 {
+    UM_TRACE_ZONE();
     UMUGU_ASSERT(ctx);
     if (ctx->state > UMUGU_STATE_IDLE) {
         ctx->io.log(
@@ -217,8 +233,9 @@ um_alloc_persistent(umugu_ctx *ctx, size_t bytes)
 }
 
 void *
-um_talloc(umugu_ctx *ctx, size_t bytes)
+um_alloctmp(umugu_ctx *ctx, size_t bytes)
 {
+    UM_TRACE_ZONE();
     UMUGU_ASSERT(ctx);
     if (ctx->state < UMUGU_STATE_IDLE) {
         ctx->io.log(
@@ -253,47 +270,160 @@ um_talloc(umugu_ctx *ctx, size_t bytes)
 float *
 um_alloc_samples(umugu_ctx *ctx, umugu_samples *s)
 {
+    UM_TRACE_ZONE();
     UMUGU_ASSERT(s);
     UMUGU_ASSERT(s->channel_count > 0 && s->channel_count < 32 && "Invalid number of channels.");
     s->frame_count = ctx->pipeline.sig.samples.frame_count;
     UMUGU_ASSERT(s->frame_count > 0);
-    s->samples = um_talloc(ctx, s->frame_count * sizeof(s->samples[0]) * s->channel_count);
+    s->samples = um_alloctmp(ctx, s->frame_count * sizeof(s->samples[0]) * s->channel_count);
     return s->samples;
 }
 
 void *
 um_alloc_signal(umugu_ctx *ctx, umugu_signal *s)
 {
+    UM_TRACE_ZONE();
     UMUGU_ASSERT(s);
     s->samples.frame_count = ctx->pipeline.sig.samples.frame_count;
     UMUGU_ASSERT(s->samples.frame_count > 0);
-    s->samples.samples = um_talloc(
+    s->samples.samples = um_alloctmp(
         ctx, s->samples.frame_count * um_type_sizeof(s->format) * s->samples.channel_count);
     return s->samples.samples;
 }
 
 int
-umugu_node_dispatch(umugu_ctx *ctx, umugu_node *node, umugu_fn fn, umugu_fn_flags flags)
+um_node_dispatch(umugu_ctx *ctx, umugu_node *node, umugu_fn fn, umugu_fn_flags flags)
 {
+    UM_TRACE_ZONE();
     UMUGU_ASSERT(node->info_idx >= 0 && "Node info index can not be negative.");
     UMUGU_ASSERT(ctx->nodes_info_next > node->info_idx && "Node info not loaded.");
     umugu_node_func func = ctx->nodes_info[node->info_idx].getfn(fn);
     return func ? func(ctx, node, flags) : UMUGU_ERR_NULL;
 }
 
+/* SERIALIZATION */
+#define UMUGU_HEAD_CODE 0x00454549
+#define UMUGU_FOOT_CODE 0x00555541
+
+typedef struct {
+    int32_t header;
+    int32_t version;
+    int32_t node_count;
+} umugu_binary_header;
+
+int
+umugu_pipeline_export(umugu_ctx *ctx, const char *filename)
+{
+    UM_TRACE_ZONE();
+    FILE *f = fopen(filename, "wb");
+    if (!f) {
+        ctx->io.log("Error: fopen('wb') failed with filename %s\n", filename);
+        return UMUGU_ERR_FILE;
+    }
+
+    umugu_binary_header h = {
+        .header = UMUGU_HEAD_CODE,
+        .version = UMUGU_VERSION,
+        .node_count = ctx->pipeline.node_count};
+
+    fwrite(&h, sizeof(h), 1, f);
+
+    for (int i = 0; i < h.node_count; ++i) {
+        umugu_node *n = ctx->pipeline.nodes[i];
+        fwrite(&ctx->nodes_info[n->info_idx].name, sizeof(umugu_name), 1, f);
+    }
+
+    for (int i = 0; i < h.node_count; ++i) {
+        umugu_node *n = ctx->pipeline.nodes[i];
+        fwrite(n, ctx->nodes_info[n->info_idx].size_bytes, 1, f);
+    }
+
+    int32_t footer = UMUGU_FOOT_CODE;
+    fwrite(&footer, 4, 1, f);
+    fclose(f);
+    return UMUGU_SUCCESS;
+}
+
+int
+umugu_pipeline_import(umugu_ctx *ctx, const char *filename)
+{
+    UM_TRACE_ZONE();
+    FILE *f = fopen(filename, "rb");
+    if (!f) {
+        ctx->io.log("Error: fopen('rb') failed with filename %s\n", filename);
+        return UMUGU_ERR_FILE;
+    }
+
+    umugu_binary_header h;
+
+    fread(&h, sizeof(h), 1, f);
+
+    if (h.header != UMUGU_HEAD_CODE) {
+        ctx->io.log("Import pipeline error: Bad binary format.\n");
+        fclose(f);
+        return UMUGU_ERR_FILE;
+    }
+
+    if (h.version != UMUGU_VERSION) {
+        ctx->io.log(
+            "Imported file's version mismatch. The format may have changed.\n"
+            "File: %d, Current: %d.\n",
+            h.version, UMUGU_VERSION);
+    }
+
+    umugu_name names[h.node_count];
+    fread(&names, sizeof(umugu_name), h.node_count, f);
+    ctx->pipeline.node_count = h.node_count;
+
+    size_t node_buffer_bytes = 0;
+
+    for (int i = 0; i < h.node_count; ++i) {
+        const umugu_node_type_info *ni = um_node_info_load(ctx, &names[i]);
+        /* Storing the offsets because I don't have the node_buffer yet. */
+        ctx->pipeline.nodes[i] = (void *)node_buffer_bytes;
+        node_buffer_bytes += ni->size_bytes;
+    }
+
+    char *node_buffer = um_allocprs(ctx, node_buffer_bytes);
+
+    for (int i = 0; i < h.node_count; ++i) {
+        /* Adding the buffer address to the previously cached offsets. */
+        ctx->pipeline.nodes[i] = (void *)((size_t)ctx->pipeline.nodes[i] + node_buffer);
+    }
+
+    fread(node_buffer, node_buffer_bytes, 1, f);
+
+    int footer;
+    fread(&footer, 4, 1, f);
+    if (footer != UMUGU_FOOT_CODE) {
+        ctx->io.log("Import pipeline error: Bad binary format.\n");
+        fclose(f);
+        return UMUGU_ERR_FILE;
+    }
+
+    fclose(f);
+
+    for (int i = 0; i < ctx->pipeline.node_count; ++i) {
+        um_node_dispatch(ctx, ctx->pipeline.nodes[i], UMUGU_FN_INIT, UMUGU_NOFLAG);
+    }
+    return UMUGU_SUCCESS;
+}
+
 int
 um_node_plug(umugu_ctx *ctx, const umugu_name *name)
 {
+    UM_TRACE_ZONE();
     char buf[1024] = {"lib"};
     strncpy(&buf[3], name->str, UMUGU_NAME_LEN);
-    char *it = &buf[3];
-    while (*it) {
+    char *it = &buf[2];
+    while (*++it) {
     }
     it[0] = '.';
     it[1] = 's';
     it[2] = 'o';
     it[3] = '\0';
     // snprintf(buf, 1024, "lib%s.so", name->str);
+    printf("Trying to load plug %s\n", buf);
 
     assert(ctx->nodes_info_next < UMUGU_DEFAULT_NODE_INFO_CAPACITY);
     void *hnd = dlopen(buf, RTLD_NOW);
@@ -323,6 +453,67 @@ um_node_unplug(umugu_node_type_info *info)
         dlclose(info->plug_handle);
         memset(info, 0, sizeof(*info));
     }
+}
+
+int
+um_pipeline_generate(umugu_ctx *ctx, const umugu_name *node_names, int node_count)
+{
+    UM_TRACE_ZONE();
+    UMUGU_ASSERT(ctx);
+    UMUGU_ASSERT(ctx->pipeline.node_count == 0);
+    ctx->pipeline.node_count = node_count;
+
+    int info_indices[64];
+    size_t pipeline_size = 0;
+
+    for (int i = 0; i < node_count; ++i) {
+        const umugu_node_type_info *ni = um_node_info_load(ctx, &node_names[i]);
+        if (!ni) {
+            ctx->io.log("Could not load node %s\n", node_names[i].str);
+            if (i == 0) {
+                umugu_name fallback_generator = {.str = "Oscillator"};
+                ni = um_node_info_load(ctx, &fallback_generator);
+                if (!ni) {
+                    ctx->io.fatal(
+                        UMUGU_ERR,
+                        "Failed to create both, the specified node and the fallback (Oscillator).",
+                        __FILE__, __LINE__);
+                    UMUGU_TRAP();
+                }
+            } else if (i == (node_count - 1)) {
+                ctx->io.log("Ignoring it since it is the last.\n");
+                --node_count;
+                --ctx->pipeline.node_count;
+                break;
+            } else {
+                umugu_name fallback_node = {.str = "Amplitude"};
+                ni = um_node_info_load(ctx, &fallback_node);
+                if (!ni) {
+                    ctx->io.fatal(
+                        UMUGU_ERR,
+                        "Failed to create both, the specified node and the fallback (Amplitude).",
+                        __FILE__, __LINE__);
+                    UMUGU_TRAP();
+                }
+            }
+        }
+
+        UMUGU_ASSERT(ni);
+        info_indices[i] = ni - &ctx->nodes_info[0];
+        pipeline_size += ni->size_bytes;
+    }
+
+    char *node_it = um_allocprs(ctx, pipeline_size);
+
+    for (int i = 0; i < node_count; ++i) {
+        umugu_node *n = (void *)node_it;
+        ctx->pipeline.nodes[i] = n;
+        n->info_idx = info_indices[i];
+        n->prev_node = i - 1;
+        um_node_dispatch(ctx, n, UMUGU_FN_INIT, UMUGU_FN_INIT_DEFAULTS);
+        node_it += ctx->nodes_info[n->info_idx].size_bytes;
+    }
+    return UMUGU_SUCCESS;
 }
 
 /*  ***  UMUGU INTERNAL  ***  */
@@ -584,37 +775,6 @@ void rosetta_fft(cplx buf[], int n) {
 }
 #endif
 
-static void
-um_load_defaults(umugu_ctx *ctx)
-{
-    ctx->io.log("Could not load config from file, setting defaults...\n");
-    ctx->pipeline.sig.samples.channel_count = 1;
-    ctx->pipeline.sig.sample_rate = UM_DEFAULT_SAMPLE_RATE;
-    ctx->pipeline.sig.format = UM_DEFAULT_SAMPLE_FORMAT;
-
-    ctx->io.backend.channel_count = UM_DEFAULT_CHANNELS;
-    ctx->io.backend.sample_rate = UM_DEFAULT_SAMPLE_RATE;
-    ctx->io.backend.format = UM_DEFAULT_SAMPLE_FORMAT;
-    ctx->io.backend.interleaved_channels = UM_DEFAULT_INTERLEAVED_CHANNELS;
-    ctx->io.backend.audio_input = UM_DEFAULT_AUDIO_IN;
-    ctx->io.backend.audio_output = UM_DEFAULT_AUDIO_OUT;
-    ctx->io.backend.audio_callback = umugu_process;
-
-    /* TODO: Remove io.out_audio. Use umugu_produce_signal params or umugu_io ringbuffer. */
-    ctx->io.out_audio.samples.channel_count = UM_DEFAULT_CHANNELS;
-    ctx->io.out_audio.sample_rate = UM_DEFAULT_SAMPLE_RATE;
-    ctx->io.out_audio.format = UM_DEFAULT_SAMPLE_FORMAT;
-
-    ctx->io.in_audio.samples.channel_count = UM_DEFAULT_AUDIO_IN;
-    ctx->io.in_audio.interleaved_channels = UM_DEFAULT_INTERLEAVED_CHANNELS;
-    ctx->io.out_audio.samples.channel_count = UM_DEFAULT_AUDIO_OUT;
-    ctx->io.out_audio.interleaved_channels = UM_DEFAULT_INTERLEAVED_CHANNELS;
-    /* remove until here */
-
-    ctx->ppln_iterations = 0;
-    ctx->ppln_it_allocated = 0;
-}
-
 /**
  * [key, value] Map for temporal storage of config variables during parse.
  *   It is a hash table of fixed_str32 key and u16 value (indices into the string storage).
@@ -631,7 +791,7 @@ static inline um_confmap
 um_confmap_create_zeroed(void)
 {
     return (um_confmap){
-        .keys = {0}, .value_idx = {0}, .storage = {0}, .storage_tail = 0, .count = 0};
+        .keys = {{.str = {0}}}, .value_idx = {0}, .storage = {0}, .storage_tail = 0, .count = 0};
 }
 
 static inline int
@@ -666,6 +826,7 @@ um_confmap_add_entry(um_confmap *cm, int idx, const umugu_name *key, const char 
 static int
 um_confmap_insert(um_confmap *cm, const umugu_name *key, const char *value, size_t len)
 {
+    UM_TRACE_ZONE();
     UMUGU_ASSERT(
         cm->count < (UMUGU_CONFIG_MAP_SIZE - UMUGU_CONFIG_MAP_SIZE / 5) &&
         "The confmap is 80%% full, consider increasing its size since "
@@ -680,6 +841,7 @@ um_confmap_insert(um_confmap *cm, const umugu_name *key, const char *value, size
 static const char *
 um_confmap_get(const um_confmap *cm, const umugu_name *key)
 {
+    UM_TRACE_ZONE();
     uint64_t hash = um_name_hash(key);
     int i = hash % UMUGU_CONFIG_MAP_SIZE;
     while (!um_name_equals(key, &cm->keys[i])) {
@@ -703,12 +865,13 @@ static const umugu_name UM_CONFMAP_SAMPLE_FORMAT = {.str = "SampleFormat"};
 static int
 um_load_config(umugu_ctx *ctx, const char *filename)
 {
+    UM_TRACE_ZONE();
     char *buffer = (char *)ctx->arena_tail;
     ptrdiff_t remaining_mem = (ctx->arena_head + ctx->arena_capacity) - ctx->arena_tail;
     UMUGU_ASSERT(remaining_mem > 0);
     size_t required_size = ctx->io.file_read(filename, buffer, remaining_mem);
     if (required_size > (size_t)remaining_mem) {
-        buffer = um_talloc(ctx, required_size);
+        buffer = um_alloctmp(ctx, required_size);
         if (ctx->io.file_read(filename, buffer, required_size) != required_size) {
             UMUGU_ASSERT(0 && "Wtf happened?");
             return UMUGU_ERR_MEM;
@@ -785,6 +948,45 @@ um_load_config(umugu_ctx *ctx, const char *filename)
     }
 
     return UMUGU_SUCCESS;
+}
+
+void
+um_signal_wav_header(umugu_signal *sig, size_t wav_data_size, void *out_buffer)
+{
+    struct wav_hdr {
+        char riff[4]; /* "RIFF" */
+        /* Total wave data size + header (44) - current index (8) */
+        int32_t bytes_remaining;
+        char wave[4];       /* "WAVE" */
+        char fmt[4];        /* "fmt " mind the space (0x20 char) */
+        int32_t num16;      /* just assign the number 16 */
+        int16_t sample_fmt; /* 1: Int, 3: Float */
+        int16_t channels;
+        int32_t sample_rate;
+        int32_t bytes_per_sec;   /* sample_rate * sample_size * number_channels */
+        int16_t bytes_per_frame; /* sample_size * number_channels */
+        int16_t bits_per_sample; /* i.e. sample_size * 8 */
+        char data[4];            /* "data" */
+        int32_t data_size;
+    } hdr = {
+        .riff = "RIFF",
+        .bytes_remaining = wav_data_size + 36,
+        .wave = "WAVE",
+        .fmt = "fmt ",
+        .num16 = 16,
+        .sample_fmt = sig->format == UMUGU_TYPE_FLOAT ? 3 : 1,
+        .channels = sig->samples.channel_count,
+        .sample_rate = sig->sample_rate,
+        .bytes_per_sec =
+            sig->sample_rate * sig->samples.channel_count * um_type_sizeof(sig->format),
+        .bytes_per_frame = sig->samples.channel_count * um_type_sizeof(sig->format),
+        .bits_per_sample = um_type_sizeof(sig->format) * 8, // 8: byte -> bits
+        .data = "data",
+        .data_size = wav_data_size};
+
+    /* 44 is the specified size of the .wav header */
+    UMUGU_ASSERT(sizeof(hdr) == 44);
+    *(struct wav_hdr *)out_buffer = hdr;
 }
 
 /* ## BUILT-IN NODES INFO ## */

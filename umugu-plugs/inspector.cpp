@@ -1,6 +1,5 @@
-#include "../umugu/src/umugu_internal.h"
-
 #include <umugu/umugu.h>
+#include <umugu/umugu_internal.h>
 
 #include <string.h>
 

@@ -84,6 +84,8 @@ um__pa_terminate(umugu_ctx *ctx)
         "\tError number: %d.\n"
         "\tError message: %s.",
         um__pa_intern.error, Pa_GetErrorText(um__pa_intern.error));
+    ctx->io.backend_data = NULL;
+    ctx->io.backend_name = NULL;
 }
 
 static inline int
@@ -92,15 +94,9 @@ um__pa_callback(
     const PaStreamCallbackTimeInfo *timeinfo, PaStreamCallbackFlags flags, void *data)
 {
     umugu_ctx *ctx = (umugu_ctx *)data;
-    umugu_audio_backend *pa_data = &ctx->io.backend;
 
-    if (!pa_data->audio_input && !pa_data->audio_output) {
-        ctx->io.log("Input and output inactive, aborting PortAudio stream.\n");
-        return paAbort;
-    }
-
-    ((umugu_portaudio *)pa_data->internal_data)->time_current = timeinfo->currentTime;
-    ((umugu_portaudio *)pa_data->internal_data)->time_margin_sec =
+    ((umugu_portaudio *)ctx->io.backend_data)->time_current = timeinfo->currentTime;
+    ((umugu_portaudio *)ctx->io.backend_data)->time_margin_sec =
         timeinfo->outputBufferDacTime - timeinfo->currentTime;
 
     if (flags & paInputUnderflow) {
@@ -123,21 +119,13 @@ um__pa_callback(
         ctx->io.log("PortAudio callback priming output.\n");
     }
 
-    if (pa_data->audio_input) {
-        ctx->io.in_audio.samples.samples = (void *)in_buffer;
-        ctx->io.in_audio.samples.frame_count = frame_count;
-    }
+    ctx->io.in_audio.samples.samples = (void *)in_buffer;
+    ctx->io.in_audio.samples.frame_count = in_buffer ? frame_count : 0;
 
-    if (pa_data->audio_output) {
-        ctx->io.out_audio.samples.samples = out_buffer;
-        ctx->io.out_audio.samples.frame_count = frame_count;
-        ctx->io.out_audio.format = pa_data->format;
-        ctx->io.out_audio.samples.channel_count = pa_data->channel_count;
-        ctx->io.out_audio.sample_rate = pa_data->sample_rate;
-        ctx->io.out_audio.interleaved_channels = pa_data->interleaved_channels;
-    }
+    ctx->io.out_audio.samples.samples = (void *)out_buffer;
+    ctx->io.out_audio.samples.frame_count = out_buffer ? frame_count : 0;
 
-    ctx->io.backend.audio_callback(ctx, frame_count, &ctx->io.in_audio, &ctx->io.out_audio);
+    umugu_process(ctx, frame_count);
 
     return paContinue;
 }
@@ -145,8 +133,7 @@ um__pa_callback(
 int
 umugu_audio_backend_start_stream(umugu_ctx *ctx)
 {
-    umugu_audio_backend *pa_data = &ctx->io.backend;
-    if (pa_data->backend_running) {
+    if (Pa_IsStreamActive(um__pa_intern.stream)) {
         ctx->io.log("The stream is already running. Ignoring call...\n");
         return UMUGU_NOOP;
     }
@@ -158,7 +145,6 @@ umugu_audio_backend_start_stream(umugu_ctx *ctx)
         return UMUGU_ERR_STREAM;
     }
 
-    pa_data->backend_running = true;
     ctx->io.log("PortAudio: Stream running.\n");
     return UMUGU_SUCCESS;
 }
@@ -166,11 +152,6 @@ umugu_audio_backend_start_stream(umugu_ctx *ctx)
 int
 umugu_audio_backend_stop_stream(umugu_ctx *ctx)
 {
-    umugu_audio_backend *pa_data = &ctx->io.backend;
-    if (!pa_data->backend_running) {
-        return UMUGU_NOOP;
-    }
-
     um__pa_intern.error = Pa_StopStream(um__pa_intern.stream);
     if (um__pa_intern.error != paNoError) {
         um__pa_terminate(ctx);
@@ -178,58 +159,44 @@ umugu_audio_backend_stop_stream(umugu_ctx *ctx)
         return UMUGU_ERR_STREAM;
     }
 
-    pa_data->backend_running = false;
     return UMUGU_SUCCESS;
 }
 
 int
 umugu_audio_backend_init(umugu_ctx *ctx)
 {
-    if (ctx->io.backend.backend_name) {
+    if (ctx->io.backend_name) {
         /* This or another backend initialized. */
         ctx->io.log(
             "There is an initialized backend named (%s) in current umugu_context\n",
-            ctx->io.backend.backend_name);
+            ctx->io.backend_name);
         return UMUGU_ERR_AUDIO_BACKEND;
-    }
-
-    umugu_audio_backend *pa_data = &ctx->io.backend;
-
-    if (pa_data->backend_running) {
-        ctx->io.log(
-            "Umugu has already been initialized and the audio backend is "
-            "loaded.\n"
-            "Ignoring this umugu_init() call...\n");
-        return UMUGU_NOOP;
     }
 
     um__pa_intern.error = Pa_Initialize();
     if (um__pa_intern.error != paNoError) {
         um__pa_terminate(ctx);
-        ctx->io.backend.backend_name = NULL;
-        ctx->io.backend.internal_data = NULL;
-        ctx->io.backend.backend_running = false;
         ctx->io.log("PortAudio Error: Initialize failed.\n");
         return UMUGU_ERR_AUDIO_BACKEND;
     }
 
-    pa_data->internal_data = &um__pa_data;
-    pa_data->backend_name = "PortAudio19";
+    ctx->io.backend_data = &um__pa_data;
+    ctx->io.backend_name = "PortAudio19";
     PaStreamParameters *iparams = NULL;
     PaStreamParameters *oparams = NULL;
     um__pa_intern.input_params.device = Pa_GetDefaultInputDevice();
     um__pa_intern.output_params.device = Pa_GetDefaultOutputDevice();
     /* Input signal params */
-    if (um__pa_intern.input_params.device != paNoDevice && pa_data->audio_input) {
-        um__pa_intern.input_params.sampleFormat = (double)pa_data->sample_rate;
-        um__pa_samplefmt(pa_data->format, !pa_data->interleaved_channels);
+    if (um__pa_intern.input_params.device != paNoDevice && ctx->io.in_audio.samples.channel_count) {
+        um__pa_intern.input_params.sampleFormat = (double)ctx->io.in_audio.sample_rate;
+        um__pa_samplefmt(ctx->io.in_audio.format, !ctx->io.in_audio.interleaved_channels);
 
         if (um__pa_intern.input_params.sampleFormat == paCustomFormat) {
             ctx->io.log(
                 "PortAudio input stream sample format error.\n"
                 "Umugu type %d to PortAudio sample format not implemented yet, "
                 "please add the corresponding switch case.\n",
-                pa_data->format);
+                ctx->io.in_audio.format);
         } else {
             um__pa_intern.input_params.suggestedLatency =
                 Pa_GetDeviceInfo(um__pa_intern.input_params.device)->defaultLowInputLatency;
@@ -239,17 +206,18 @@ umugu_audio_backend_init(umugu_ctx *ctx)
     }
 
     /* Output signal params */
-    if (um__pa_intern.output_params.device != paNoDevice && pa_data->audio_output) {
-        um__pa_intern.output_params.channelCount = pa_data->channel_count;
+    if (um__pa_intern.output_params.device != paNoDevice &&
+        ctx->io.out_audio.samples.channel_count) {
+        um__pa_intern.output_params.channelCount = ctx->io.out_audio.samples.channel_count;
         um__pa_intern.output_params.sampleFormat =
-            um__pa_samplefmt(pa_data->format, !pa_data->interleaved_channels);
+            um__pa_samplefmt(ctx->io.out_audio.format, !ctx->io.out_audio.interleaved_channels);
 
         if (um__pa_intern.output_params.sampleFormat == paCustomFormat) {
             ctx->io.log(
                 "PortAudio output stream sample format error.\n"
                 "Umugu type %d to PortAudio sample format not implemented yet, "
                 "please add the corresponding switch case.\n",
-                pa_data->format);
+                ctx->io.out_audio.format);
         } else {
             um__pa_intern.output_params.suggestedLatency =
                 Pa_GetDeviceInfo(um__pa_intern.output_params.device)->defaultLowOutputLatency;
@@ -259,20 +227,14 @@ umugu_audio_backend_init(umugu_ctx *ctx)
     }
 
     um__pa_intern.error = Pa_OpenStream(
-        &um__pa_intern.stream, iparams, oparams, (double)pa_data->sample_rate,
+        &um__pa_intern.stream, iparams, oparams, (double)ctx->io.out_audio.sample_rate,
         paFramesPerBufferUnspecified, paClipOff, um__pa_callback, ctx);
 
     if (um__pa_intern.error != paNoError) {
         um__pa_terminate(ctx);
-        ctx->io.backend.internal_data = NULL;
-        ctx->io.backend.backend_name = NULL;
-        ctx->io.backend.backend_running = false;
         return UMUGU_ERR_AUDIO_BACKEND;
     }
     ctx->io.log("PortAudio: Stream Opened!\n");
-
-    pa_data->audio_input = iparams;
-    pa_data->audio_output = oparams;
 
     return UMUGU_SUCCESS;
 }
@@ -286,9 +248,8 @@ umugu_audio_backend_close(umugu_ctx *ctx)
         return UMUGU_ERR_AUDIO_BACKEND;
     }
 
-    ctx->io.backend.backend_name = NULL;
-    ctx->io.backend.internal_data = NULL;
-    ctx->io.backend.backend_running = false;
+    ctx->io.backend_name = NULL;
+    ctx->io.backend_data = NULL;
     Pa_Terminate();
     return UMUGU_SUCCESS;
 }
