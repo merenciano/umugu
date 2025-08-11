@@ -1,9 +1,9 @@
 #include "PipelineBuilder.h"
 
-#include "../../umugu/src/umugu_internal.h"
 #include "Utilities.h"
 
 #include <umugu/umugu.h>
+#include <umugu/umugu_internal.h>
 
 #include <imgui/imgui.h>
 
@@ -13,12 +13,12 @@
 
 namespace umumk {
 void PipelineBuilder::Show() {
-  auto pCtx = umugu_get();
+  auto pCtx = umugu_ctx();
   auto AddNode = [pCtx, this](const auto &It) {
     if (ImGui::CollapsingHeader("Add node")) {
-      for (int i = 0; i < pCtx->nodes_info_next; ++i) {
-        if (ImGui::Button(pCtx->nodes_info[i].name.str)) {
-          auto NewIt = mNodes.insert(It, (umugu_node *)calloc(1, pCtx->nodes_info[i].size_bytes));
+      for (int i = 0; i < pCtx.nodes_info_next; ++i) {
+        if (ImGui::Button(pCtx.nodes_info[i].name.str)) {
+          auto NewIt = mNodes.insert(It, (umugu_node *)calloc(1, pCtx.nodes_info[i].size_bytes));
           (*NewIt)->info_idx = i;
         }
       }
@@ -28,7 +28,7 @@ void PipelineBuilder::Show() {
   ImGui::Begin("Pipeline builder");
   static umugu_name NodeName;
   if (ImGui::Button("Load info")) {
-    um_node_info_load(&NodeName);
+    um_node_info_load(&pCtx, &NodeName);
     memset(NodeName.str, 0, 32);
   }
   ImGui::SameLine();
@@ -57,7 +57,7 @@ void PipelineBuilder::Show() {
     fwrite(&Version, 4, 1, File);
     size_t PipelineSize = 0;
     for (auto pNode : mNodes) {
-      const umugu_node_info *pInfo = &pCtx->nodes_info[pNode->info_idx];
+      const umugu_node_type_info *pInfo = &pCtx.nodes_info[pNode->info_idx];
       if (!pInfo) {
         printf("Node info not found.\n");
         return;
@@ -68,7 +68,7 @@ void PipelineBuilder::Show() {
     fwrite(&PipelineSize, 8, 1, File);
 
     for (auto pNode : mNodes) {
-      const umugu_node_info *pInfo = &pCtx->nodes_info[pNode->info_idx];
+      const umugu_node_type_info *pInfo = &pCtx.nodes_info[pNode->info_idx];
       if (!pInfo) {
         printf("Node info not found.\n");
         return;

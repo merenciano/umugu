@@ -93,7 +93,6 @@ umugu_load(const umugu_config *cfg)
     um_nanosec init_time = um_time_now();
     UMUGU_ASSERT(cfg);
     UMUGU_ASSERT(cfg->arena && cfg->arena_size > sizeof(umugu_ctx));
-    UMUGU_ASSERT(cfg->arena);
 
 #ifdef UMUGU_DEBUG
     memset(cfg->arena, 0, cfg->arena_size);

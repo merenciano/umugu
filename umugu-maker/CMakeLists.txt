@@ -57,28 +57,55 @@ target_sources(umugu-maker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/PipelineInspector.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Utilities.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Utilities.h
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/extern/src/imgui.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/extern/src/imgui_demo.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/extern/src/imgui_draw.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/extern/src/imgui_impl_opengl3.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/extern/src/imgui_impl_sdl2.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/extern/src/imgui_tables.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/extern/src/imgui_widgets.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/extern/src/implot.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/extern/src/implot_demo.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/extern/src/implot_items.cpp
 )
 
-target_link_options(umugu-maker PRIVATE 
+target_link_options(umugu-maker PRIVATE
+   # -Wl,--dynamicbase -Wl,--nxcompat -Wl,--high-entropy-va
     "LINKER:-rpath,${CMAKE_CURRENT_SOURCE_DIR}/../assets/plugs"
-    -rdynamic
+    #-rdynamic
 )
 
 target_link_directories(umugu-maker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../umugu/lib
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/lib
+    ${CMAKE_CURRENT_SOURCE_DIR}/../extern/lib
 )
 
 target_link_libraries(umugu-maker PRIVATE
 	m
 	pthread
-	rt
+	#rt
     umugu
-    GL
-    dl
+    opengl32
+    #dl
     SDL2
+        SDL2main
     -l:libimgui.a
-    portaudio
-    portmidi
-    jack
+    #portmidi
+    #jack
+    winmm
+        user32
+        gdi32
+        dinput8
+        ole32
+        shell32
+        dxguid
+        dxerr8
+        imm32
+        oleaut32
+        setupapi
+        version
+        uuid
+
 )

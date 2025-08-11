@@ -119,10 +119,10 @@ um__pa_callback(
         ctx->io.log("PortAudio callback priming output.\n");
     }
 
-    ctx->io.in_audio.samples.samples = (void *)in_buffer;
+    ctx->io.in_audio.samples.samples = (float*)in_buffer;
     ctx->io.in_audio.samples.frame_count = in_buffer ? frame_count : 0;
 
-    ctx->io.out_audio.samples.samples = (void *)out_buffer;
+    ctx->io.out_audio.samples.samples = (float*)out_buffer;
     ctx->io.out_audio.samples.frame_count = out_buffer ? frame_count : 0;
 
     umugu_process(ctx, frame_count);

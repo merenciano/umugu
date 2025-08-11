@@ -1,4 +1,3 @@
-set(CMAKE_DEBUG_POSTFIX _d)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED TRUE)
 
@@ -31,6 +30,7 @@ target_sources(umugu PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include/umugu/umugu_internal.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/umugu_nodes.c
+	${CMAKE_CURRENT_SOURCE_DIR}/extern/src/dlfcn.c
 )
 
 add_compile_options(
@@ -41,18 +41,19 @@ add_compile_options(
 
 add_link_options(
     "LINKER:-rpath,${CMAKE_CURRENT_SOURCE_DIR}/../assets/plugs"
-    -rdynamic
+    #-rdynamic
 )
 
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+	${CMAKE_CURRENT_SOURCE_DIR}/extern/include
 )
 
 link_libraries(
 	m
-    dl
+    #dl
 	pthread
-	rt
+	#rt
     umugu
 )
 
@@ -60,11 +61,14 @@ add_executable(plumugu)
 
 target_sources(plumugu PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/test/main.c
+	${CMAKE_CURRENT_SOURCE_DIR}/extern/src/dlfcn.c
+)
+
+target_link_directories(plumugu PRIVATE
+	${CMAKE_CURRENT_SOURCE_DIR}/extern/lib
 )
 
 target_link_libraries(plumugu PRIVATE
-    jack
-    asound
-    portaudio
-    fluidsynth
+	Ole32
+    fluidsynth-3
 )

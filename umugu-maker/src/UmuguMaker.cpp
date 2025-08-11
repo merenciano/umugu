@@ -13,6 +13,8 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_opengl.h>
 
+#include <stdio.h>
+
 // TODO: Stride (plotting all the points is causing fps drops)
 #define PLOT_WAVE_SHAPE(WS, R, G, B)                                                               \
   ImPlot::PushStyleColor(ImPlotCol_Line, ImVec4(R, G, B, 1.0f));                                   \
@@ -29,13 +31,14 @@ void UmuguMaker::MainMenu() {
     if (ImGui::MenuItem("Load pipeline")) {
       mShowLoadWindow = true;
     }
+    auto ctx = umugu_ctx();
     static bool StreamStarted = false;
     if (ImGui::MenuItem("Start stream", "", StreamStarted, true)) {
-      umugu_audio_backend_start_stream();
+      umugu_audio_backend_start_stream(&ctx);
       StreamStarted = true;
     }
     if (ImGui::MenuItem("Stop stream", "", !StreamStarted, true)) {
-      umugu_audio_backend_stop_stream();
+      umugu_audio_backend_stop_stream(&ctx);
       StreamStarted = false;
     }
     ImGui::EndMenu();
@@ -73,7 +76,8 @@ void UmuguMaker::ToolWindows() {
     ImGui::Begin("Load file");
     ImGui::InputText("Pipeline file to load", Buffer, 1024);
     if (ImGui::Button("Load")) {
-      umugu_import_pipeline(Buffer);
+      auto ctx = umugu_ctx();
+      umugu_pipeline_import(&ctx, Buffer);
       mShowLoadWindow = false;
     }
     ImGui::End();
@@ -122,6 +126,7 @@ static void ErrorFatal(int err, const char *msg, const char *file, int line) {
 
 static size_t CopyFileToBuffer(const char *filename, void *buffer, size_t buf_size) {
   FILE *fp = fopen(filename, "r");
+  if (!fp) return 0;
   fseek(fp, 0, SEEK_END);
   size_t size = ftell(fp);
   if ((size + 1) > buf_size) {
@@ -137,31 +142,29 @@ static size_t CopyFileToBuffer(const char *filename, void *buffer, size_t buf_si
 }
 
 UmuguMaker::UmuguMaker() {
-  constexpr size_t Size = 1024 * 1024 * 1024;
-  umugu_config Config = {.log_fn = printf,
-                         .fatal_err_fn = ErrorFatal,
-                         .load_file = CopyFileToBuffer,
-                         .config_file = "../assets/config.ucg",
-                         .arena = malloc(Size),
-                         .arena_size = Size,
-                         .fallback_ppln = {},
-                         .fallback_ppln_node_count = 0};
-  auto *pCtx = umugu_load(&Config);
+  constexpr size_t Size = 1024 * 1024 * 2;
+    void *arena = malloc(Size);
+    if (!arena) {
 
-  pCtx->io.backend.channel_count = 2;
-  pCtx->io.backend.sample_rate = 48000;
-  pCtx->io.backend.format = UMUGU_TYPE_FLOAT;
-  pCtx->io.backend.interleaved_channels = true;
-  pCtx->io.backend.audio_input = false;
-  pCtx->io.backend.audio_output = true;
-  pCtx->io.backend.audio_callback = umugu_process;
+    }
+  umugu_config Config = {
+                          .log_fn = printf,
+                         .fatal_err_fn = ErrorFatal,
+                         .load_file_fn = CopyFileToBuffer,
+                         .config_file = "../assets/config.ucg",
+                         .arena = arena,
+                         .arena_size = Size,
+                         .fallback_ppln = {{"Oscillator"}},
+                         .fallback_ppln_node_count = 1};
+
+  auto *pCtx = umugu_load(&Config);
+  umugu_audio_backend_init(pCtx);
+  OpenWindow();
   if (pCtx->state != UMUGU_STATE_IDLE) {
     pCtx->io.log("Something went wrong initializing umugu.\n");
   }
 
-  umugu_audio_backend_init();
-  // umugu_audio_backend_start_stream();
-  OpenWindow();
+  umugu_audio_backend_start_stream(pCtx);
 }
 
 UmuguMaker::~UmuguMaker() {
@@ -174,8 +177,9 @@ UmuguMaker::~UmuguMaker() {
   SDL_DestroyWindow((SDL_Window *)mpWindowHandle);
   SDL_Quit();
 
-  umugu_audio_backend_stop_stream();
-  umugu_audio_backend_close();
+  auto ctx = umugu_ctx();
+  umugu_audio_backend_stop_stream(&ctx);
+  umugu_audio_backend_close(&ctx);
 }
 
 bool UmuguMaker::Update() {
@@ -224,17 +228,13 @@ void UmuguMaker::OpenWindow() {
 
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-
-#ifdef SDL_HINT_IME_SHOW_UI
-  SDL_SetHint(SDL_HINT_IME_SHOW_UI, "1");
-#endif
 
   SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
   SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
   SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
-  int Flags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
+  int Flags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE;
   mpWindowHandle = SDL_CreateWindow("Venga, a ver si te buscas una musiquilla guapa, no colega?",
                                     SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, mWindowWidth,
                                     mWindowHeight, Flags);
